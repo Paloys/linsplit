@@ -1,8 +1,5 @@
 use procfs::process::{MMPermissions, MemoryMap, Process};
-use std::{
-    collections::HashSet,
-    io::{Read, Seek, SeekFrom},
-};
+use std::io::{Read, Seek, SeekFrom};
 use std::io;
 use std::{io::Write, thread::sleep, time::Duration};
 
