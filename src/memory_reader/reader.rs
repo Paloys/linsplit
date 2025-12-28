@@ -1,14 +1,17 @@
-use anyhow::Result;
+use crate::memory_reader::flags::AutoSplitterChapterFlags;
+use anyhow::{Result, anyhow};
 use procfs::process::{MMPermissions, MemoryMap, Process};
 use std::{
-    error::Error, fmt, fs::File, io::{Read, Seek, SeekFrom}
+    error::Error,
+    fmt,
+    fs::File,
+    io::{Read, Seek, SeekFrom},
 };
-use crate::memory_reader::flags::AutoSplitterChapterFlags;
 
 pub struct EverestMemReader {
     process: Process,
     map: MemoryMap,
-    memory: File
+    memory: File,
 }
 
 #[derive(Debug, Clone)]
@@ -52,22 +55,20 @@ impl EverestMemReader {
                     if map.perms.contains(MMPermissions::READ) {
                         memory.seek(SeekFrom::Start(map.address.0))?;
                         let mut buf: [u8; 20] = [0u8; 20];
-                        match memory.read_exact(&mut buf) {
-                            Ok(_) => {}
-                            Err(_) => {}
-                        }
+                        memory.read_exact(&mut buf).unwrap_or(());
                         if buf.iter().eq(CORE_AUTOSPLITTER_MAGIC) {
                             let mut buf2: [u8; 1] = [0];
                             memory.seek(SeekFrom::Current(0x03))?;
-                            match memory.read_exact(&mut buf2) {
-                                Ok(_) => {}
-                                Err(_) => {}
-                            }
+                            memory.read_exact(&mut buf2).unwrap_or(());
                             if u8::from_be_bytes(buf2) < CORE_AUTOSPLITTER_INFO_MIN_VERSION {
                                 // println!("Bruh : {:?}", buf2);
                                 continue;
                             }
-                            return Ok(Self { process, map, memory });
+                            return Ok(Self {
+                                process,
+                                map,
+                                memory,
+                            });
                         }
                     }
                 }
@@ -76,35 +77,71 @@ impl EverestMemReader {
         Err(NotFoundError.into())
     }
 
-    pub fn read_bits(&mut self, count: )
+    fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
+        self.memory
+            .seek(SeekFrom::Start(self.map.address.0 + offset))?;
+        let mut buf = [0; COUNT];
+        self.memory.read_exact(&mut buf)?;
+        Ok(buf)
+    }
 
-    pub fn level_name(&mut self) -> Result<String> {
-        self.memory.seek(SeekFrom::Start(self.map.address.0 + 0x38))?;
-        let mut buf: [u8; 8] = [0u8; 8];
-        match self.memory.read_exact(&mut buf) {
-            Ok(_) => {}
-            Err(_) => {}
-        }
-        let level_name_str = u64::from_le_bytes(buf);
-        //println!("{:?}", level_name_str);
-        let mut buf: [u8; 2] = [0; 2];
-        self.memory.seek(SeekFrom::Start(level_name_str - 2))?;
-        match self.memory.read_exact(&mut buf) {
-            Ok(_) => {}
-            Err(_) => {}
-        }
-        let name_len: u16 = u16::from_le_bytes(buf);
-        let mut buf: Vec<u8> = vec![0; name_len as usize];
-        self.memory.seek(SeekFrom::Start(level_name_str))?;
-        match self.memory.read_exact(&mut buf) {
-            Ok(_) => {}
-            Err(_) => {}
-        }
-        return Ok(String::from_utf8(buf)?);
+    fn read_vec_bits(&mut self, offset: u64, count: usize) -> Result<Vec<u8>> {
+        self.memory
+            .seek(SeekFrom::Start(self.map.address.0 + offset))?;
+        let mut buf = vec![0; count];
+        self.memory.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+
+    fn read_global_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
+        self.memory.seek(SeekFrom::Start(offset))?;
+        let mut buf = [0; COUNT];
+        self.memory.read_exact(&mut buf)?;
+        Ok(buf)
     }
 
     pub fn chapter_complete(&mut self) -> Result<bool> {
-        self.memory.seek(SeekFrom::Start(self.map.address.0 + 0x4c))?;
-        AutoSplitterChapterFlags::from_bits()
+        Ok(
+            AutoSplitterChapterFlags::from_bits(u32::from_le_bytes(self.read_bits(0x4c)?))
+                .ok_or(anyhow!("a"))?
+                .contains(AutoSplitterChapterFlags::CHAPTER_COMPLETE),
+        )
+    }
+
+    pub fn level_name(&mut self) -> Result<String> {
+        let level_name_str = u64::from_le_bytes(self.read_bits(0x38)?);
+        if level_name_str < 2 {
+            return Err(anyhow!("failed to get level_name_str"));
+        }
+        let name_len = u16::from_le_bytes(self.read_global_bits(level_name_str - 2)?);
+        Ok(String::from_utf8(self.read_vec_bits(level_name_str, name_len as usize)?)?)
+    }
+
+    pub fn area_id(&mut self) -> Result<i32> {
+        Ok(i32::from_le_bytes(self.read_bits(0x30)?))
+    }
+
+    pub fn area_difficulty(&mut self) -> Result<i32> {
+        Ok(i32::from_le_bytes(self.read_bits(0x34)?))
+    }
+
+    pub fn chapter_started(&mut self) -> Result<bool> {
+        Ok(
+            AutoSplitterChapterFlags::from_bits(u32::from_le_bytes(self.read_bits(0x4c)?))
+                .ok_or(anyhow!("failed"))?
+                .contains(AutoSplitterChapterFlags::CHAPTER_STARTED),
+        )
+    }
+
+    pub fn game_time(&mut self) -> Result<f64> {
+        Ok(i64::from_le_bytes(self.read_bits(0x50)?) as f64 / 10000000.)
+    }
+
+    pub fn level_time(&mut self) -> Result<f64> {
+        Ok(i64::from_le_bytes(self.read_bits(0x40)?) as f64 / 10000000.)
+    }
+
+    pub fn strawberries(&mut self) -> Result<u32> {
+        Ok(u32::from_le_bytes(self.read_bits(0x58)?))
     }
 }
