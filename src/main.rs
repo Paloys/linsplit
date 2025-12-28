@@ -1,4 +1,4 @@
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::Write;
 use std::{io, thread::sleep, time::Duration};
 mod memory_reader;
 use crate::memory_reader::reader::EverestMemReader;
