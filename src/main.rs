@@ -1,16 +1,14 @@
-use std::io::Write;
-use std::{io, thread::sleep, time::Duration};
+use std::{thread::sleep, time::Duration};
 mod memory_reader;
-use crate::memory_reader::reader::EverestMemReader;
+use crate::memory_reader::reader::{GameData};
 
 #[cfg(target_os = "linux")]
 fn main() {
-
-    let mut reader = EverestMemReader::new().expect("Error getting the process");
+    let mut gamedata = GameData::new();
     loop {
-        print!("\r\x1b[2KGame Time: {:?}; LevelTime: {:?}", reader.game_time(), reader.level_time());
+        gamedata.update();
+        println!("{}", gamedata);
         sleep(Duration::from_millis(1));
-        io::stdout().flush().unwrap();
     }
 }
 

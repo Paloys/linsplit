@@ -1,17 +1,92 @@
-use crate::memory_reader::flags::AutoSplitterChapterFlags;
+use crate::memory_reader::flags::{AutoSplitterChapterFlags, AutoSplitterFileFlags};
 use anyhow::{Result, anyhow};
 use procfs::process::{MMPermissions, MemoryMap, Process};
 use std::{
     error::Error,
-    fmt,
+    fmt::{self, Display},
     fs::File,
     io::{Read, Seek, SeekFrom},
 };
 
-pub struct EverestMemReader {
-    process: Process,
+pub struct GameData {
+    mem_reader: EverestMemReader,
+    chapter_complete: bool,
+    level_name: String,
+    area_id: i32,
+    area_difficulty: i32,
+    chapter_started: bool,
+    game_time: f64,
+    level_time: f64,
+    strawberries: u32,
+    cassettes: u32,
+    chapter_cassette_collected: bool,
+    heart_gems: u32,
+    chapter_heart_collected: bool,
+    starting_new_file: bool,
+}
+
+impl GameData {
+    pub fn new() -> Self {
+        Self {
+            mem_reader: EverestMemReader::new().expect("Error getting the process"),
+            chapter_complete: false,
+            level_name: String::new(),
+            area_id: 0,
+            area_difficulty: 0,
+            chapter_started: false,
+            game_time: 0.0,
+            level_time: 0.0,
+            strawberries: 0,
+            cassettes: 0,
+            chapter_cassette_collected: false,
+            heart_gems: 0,
+            chapter_heart_collected: false,
+            starting_new_file: false,
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.chapter_complete = self.mem_reader.chapter_complete().unwrap_or(false);
+        self.level_name = self.mem_reader.level_name().unwrap_or(String::from("Unknown"));
+        self.area_id = self.mem_reader.area_id().unwrap_or(-2);
+        self.area_difficulty = self.mem_reader.area_difficulty().unwrap_or(0);
+        self.chapter_started = self.mem_reader.chapter_started().unwrap_or(false);
+        self.game_time = self.mem_reader.game_time().unwrap_or(0.0);
+        self.level_time = self.mem_reader.level_time().unwrap_or(0.0);
+        self.strawberries = self.mem_reader.strawberries().unwrap_or(0);
+        self.cassettes = self.mem_reader.cassettes().unwrap_or(0);
+        self.chapter_cassette_collected = self.mem_reader.chapter_cassette_collected().unwrap_or(false);
+        self.heart_gems = self.mem_reader.heart_gems().unwrap_or(0);
+        self.chapter_heart_collected = self.mem_reader.chapter_heart_collected().unwrap_or(false);
+        self.starting_new_file = self.mem_reader.starting_new_file().unwrap_or(false);
+    }
+}
+
+impl Display for GameData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+            format!("chapter_complete: {}", self.chapter_complete),
+            format!("level_name: {}", self.level_name),
+            format!("area_id: {}", self.area_id),
+            format!("area_difficulty: {}", self.area_difficulty),
+            format!("chapter_started: {}", self.chapter_started),
+            format!("game_time: {:.3}", self.game_time),
+            format!("level_time: {:.3}", self.level_time),
+            format!("strawberries: {}", self.strawberries),
+            format!("cassettes: {}", self.cassettes),
+            format!("chapter_cassette_collected: {}", self.chapter_cassette_collected),
+            format!("heart_gems: {}", self.heart_gems),
+            format!("chapter_heart_collected: {}", self.chapter_heart_collected),
+            format!("starting_new_file: {}", self.starting_new_file),
+        )
+    }
+}
+
+struct EverestMemReader {
+    _process: Process,
     map: MemoryMap,
     memory: File,
+    _hooked: bool
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +101,7 @@ impl fmt::Display for NotFoundError {
 impl Error for NotFoundError {}
 
 impl EverestMemReader {
-    pub fn new() -> Result<Self> {
+    fn new() -> Result<Self> {
         const CORE_AUTOSPLITTER_MAGIC: &[u8] = b"EVERESTAUTOSPLIT\xF0\xF1\xF2\xF3";
         const CORE_AUTOSPLITTER_INFO_MIN_VERSION: u8 = 3;
         let all_processes: Vec<Process> = procfs::process::all_processes()
@@ -34,7 +109,6 @@ impl EverestMemReader {
             .filter_map(|p| match p {
                 Ok(p) => {
                     if p.stat().ok()?.comm.contains("Celeste") {
-                        // TODO: CHECK THE ABOVE IS RIGHT
                         println!(
                             "Scanning process {} (PID {})",
                             p.stat().unwrap().comm,
@@ -65,9 +139,10 @@ impl EverestMemReader {
                                 continue;
                             }
                             return Ok(Self {
-                                process,
+                                _process: process,
                                 map,
                                 memory,
+                                _hooked: true
                             });
                         }
                     }
@@ -85,9 +160,9 @@ impl EverestMemReader {
         Ok(buf)
     }
 
-    fn read_vec_bits(&mut self, offset: u64, count: usize) -> Result<Vec<u8>> {
+    fn read_vec_global_bits(&mut self, offset: u64, count: usize) -> Result<Vec<u8>> {
         self.memory
-            .seek(SeekFrom::Start(self.map.address.0 + offset))?;
+            .seek(SeekFrom::Start(offset))?;
         let mut buf = vec![0; count];
         self.memory.read_exact(&mut buf)?;
         Ok(buf)
@@ -100,7 +175,7 @@ impl EverestMemReader {
         Ok(buf)
     }
 
-    pub fn chapter_complete(&mut self) -> Result<bool> {
+    fn chapter_complete(&mut self) -> Result<bool> {
         Ok(
             AutoSplitterChapterFlags::from_bits(u32::from_le_bytes(self.read_bits(0x4c)?))
                 .ok_or(anyhow!("a"))?
@@ -108,24 +183,26 @@ impl EverestMemReader {
         )
     }
 
-    pub fn level_name(&mut self) -> Result<String> {
+    fn level_name(&mut self) -> Result<String> {
         let level_name_str = u64::from_le_bytes(self.read_bits(0x38)?);
         if level_name_str < 2 {
             return Err(anyhow!("failed to get level_name_str"));
         }
         let name_len = u16::from_le_bytes(self.read_global_bits(level_name_str - 2)?);
-        Ok(String::from_utf8(self.read_vec_bits(level_name_str, name_len as usize)?)?)
+        Ok(String::from_utf8(
+            self.read_vec_global_bits(level_name_str, name_len as usize)?,
+        )?)
     }
 
-    pub fn area_id(&mut self) -> Result<i32> {
+    fn area_id(&mut self) -> Result<i32> {
         Ok(i32::from_le_bytes(self.read_bits(0x30)?))
     }
 
-    pub fn area_difficulty(&mut self) -> Result<i32> {
+    fn area_difficulty(&mut self) -> Result<i32> {
         Ok(i32::from_le_bytes(self.read_bits(0x34)?))
     }
 
-    pub fn chapter_started(&mut self) -> Result<bool> {
+    fn chapter_started(&mut self) -> Result<bool> {
         Ok(
             AutoSplitterChapterFlags::from_bits(u32::from_le_bytes(self.read_bits(0x4c)?))
                 .ok_or(anyhow!("failed"))?
@@ -133,15 +210,47 @@ impl EverestMemReader {
         )
     }
 
-    pub fn game_time(&mut self) -> Result<f64> {
+    fn game_time(&mut self) -> Result<f64> {
         Ok(i64::from_le_bytes(self.read_bits(0x50)?) as f64 / 10000000.)
     }
 
-    pub fn level_time(&mut self) -> Result<f64> {
+    fn level_time(&mut self) -> Result<f64> {
         Ok(i64::from_le_bytes(self.read_bits(0x40)?) as f64 / 10000000.)
     }
 
-    pub fn strawberries(&mut self) -> Result<u32> {
+    fn strawberries(&mut self) -> Result<u32> {
         Ok(u32::from_le_bytes(self.read_bits(0x58)?))
+    }
+
+    fn cassettes(&mut self) -> Result<u32> {
+        Ok(u32::from_le_bytes(self.read_bits(0x60)?))
+    }
+
+    fn chapter_cassette_collected(&mut self) -> Result<bool> {
+        Ok(
+            AutoSplitterChapterFlags::from_bits(u32::from_le_bytes(self.read_bits(0x4c)?))
+                .ok_or(anyhow!("failed"))?
+                .contains(AutoSplitterChapterFlags::CHAPTER_CASSETTE),
+        )
+    }
+
+    fn heart_gems(&mut self) -> Result<u32> {
+        Ok(u32::from_le_bytes(self.read_bits(0x64)?))
+    }
+
+    fn chapter_heart_collected(&mut self) -> Result<bool> {
+        Ok(
+            AutoSplitterChapterFlags::from_bits(u32::from_le_bytes(self.read_bits(0x4c)?))
+                .ok_or(anyhow!("failed"))?
+                .contains(AutoSplitterChapterFlags::CHAPTER_HEART),
+        )
+    }
+
+    fn starting_new_file(&mut self) -> Result<bool> {
+        Ok(
+            AutoSplitterFileFlags::from_bits(u32::from_le_bytes(self.read_bits(0x68)?))
+                .ok_or(anyhow!("failed"))?
+                .contains(AutoSplitterFileFlags::STARTING_NEW_FILE),
+        )
     }
 }
