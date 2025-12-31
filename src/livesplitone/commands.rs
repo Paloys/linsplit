@@ -1,6 +1,5 @@
 use serde::Serializer;
-use std::{any, fmt};
-use std::{str::FromStr, time::Duration};
+use std::time::Duration;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[repr(transparent)]

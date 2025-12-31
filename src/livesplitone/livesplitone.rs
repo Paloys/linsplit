@@ -1,9 +1,8 @@
 use std::result::Result::Ok;
-use std::{mem, time::Duration};
 
 use anyhow::Result;
 use futures_util::{
-    SinkExt, TryStreamExt, future,
+    SinkExt, TryStreamExt,
     stream::{SplitSink, SplitStream, StreamExt},
 };
 use tokio::net::{TcpListener, TcpStream};

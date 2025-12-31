@@ -1,7 +1,4 @@
-use roxmltree::{Document, NodeId};
-use std::io::Seek;
-use std::{fs, thread::sleep, time::Duration};
-use tokio::io::split;
+use std::{thread::sleep, time::Duration};
 mod livesplitone;
 mod memory_reader;
 mod split_reader;
@@ -20,7 +17,7 @@ struct LinSplitData {
 
 impl LinSplitData {
     async fn new(file_path: &str, addr: &str) -> Self {
-        let mut splits = SplitData::read_splits(file_path).unwrap();
+        let splits = SplitData::read_splits(file_path).unwrap();
         let socket = SplitterSocket::new(addr).await.unwrap();
         let game_data = GameData::new();
         tokio::time::sleep(Duration::from_secs(3)).await;
