@@ -5,7 +5,7 @@ use std::{
     error::Error,
     fmt::{self, Display},
     fs::File,
-    io::{Read, Seek, SeekFrom},
+    io::{Read, Seek, SeekFrom}, thread::{self, sleep}, time::Duration,
 };
 
 pub struct GameData {
@@ -115,52 +115,50 @@ impl EverestMemReader {
     fn new() -> Result<Self> {
         const CORE_AUTOSPLITTER_MAGIC: &[u8] = b"EVERESTAUTOSPLIT\xF0\xF1\xF2\xF3";
         const CORE_AUTOSPLITTER_INFO_MIN_VERSION: u8 = 3;
-        let all_processes: Vec<Process> = procfs::process::all_processes()
-            .expect("Can't read /proc")
-            .filter_map(|p| match p {
-                Ok(p) => {
-                    if p.stat().ok()?.comm.contains("Celeste") {
-                        println!(
-                            "Scanning process {} (PID {})",
-                            p.stat().unwrap().comm,
-                            p.stat().unwrap().pid
-                        );
-                        return Some(p);
-                    }
-                    None
-                } // happy path
-                Err(_) => None,
-            })
-            .collect();
-        for process in all_processes {
-            if let Ok(mut memory) = process.mem()
-                && let Ok(unwarped_maps) = process.maps()
-            {
-                for map in unwarped_maps {
-                    if map.perms.contains(MMPermissions::READ) {
-                        memory.seek(SeekFrom::Start(map.address.0))?;
-                        let mut buf: [u8; 20] = [0u8; 20];
-                        memory.read_exact(&mut buf).unwrap_or(());
-                        if buf.iter().eq(CORE_AUTOSPLITTER_MAGIC) {
-                            let mut buf2: [u8; 1] = [0];
-                            memory.seek(SeekFrom::Current(0x03))?;
-                            memory.read_exact(&mut buf2).unwrap_or(());
-                            if u8::from_be_bytes(buf2) < CORE_AUTOSPLITTER_INFO_MIN_VERSION {
-                                // println!("Bruh : {:?}", buf2);
-                                continue;
+        println!("Waiting for Celeste...");
+        loop {
+            let all_processes: Vec<Process> = procfs::process::all_processes()
+                .expect("Can't read /proc")
+                .filter_map(|p| match p {
+                    Ok(p) => {
+                        if p.stat().ok()?.comm.contains("Celeste") {
+                            return Some(p);
+                        }
+                        None
+                    } // happy path
+                    Err(_) => None,
+                })
+                .collect();
+            for process in all_processes {
+                if let Ok(mut memory) = process.mem()
+                    && let Ok(unwarped_maps) = process.maps()
+                {
+                    for map in unwarped_maps {
+                        if map.perms.contains(MMPermissions::READ) {
+                            memory.seek(SeekFrom::Start(map.address.0))?;
+                            let mut buf: [u8; 20] = [0u8; 20];
+                            memory.read_exact(&mut buf).unwrap_or(());
+                            if buf.iter().eq(CORE_AUTOSPLITTER_MAGIC) {
+                                let mut buf2: [u8; 1] = [0];
+                                memory.seek(SeekFrom::Current(0x03))?;
+                                memory.read_exact(&mut buf2).unwrap_or(());
+                                if u8::from_be_bytes(buf2) < CORE_AUTOSPLITTER_INFO_MIN_VERSION {
+                                    // println!("Bruh : {:?}", buf2);
+                                    continue;
+                                }
+                                return Ok(Self {
+                                    _process: process,
+                                    map,
+                                    memory,
+                                    _hooked: true,
+                                });
                             }
-                            return Ok(Self {
-                                _process: process,
-                                map,
-                                memory,
-                                _hooked: true,
-                            });
                         }
                     }
                 }
             }
+            sleep(Duration::from_millis(200));
         }
-        Err(NotFoundError.into())
     }
 
     fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {

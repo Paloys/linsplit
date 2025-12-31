@@ -1,6 +1,12 @@
-use std::borrow::Cow;
+use serde::Serializer;
+use std::{any, fmt};
+use std::{str::FromStr, time::Duration};
 
-#[derive(Clone, serde_derive::Serialize, serde_derive::Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[repr(transparent)]
+pub struct TimeSpan(Duration);
+
+#[derive(Clone, serde_derive::Serialize)]
 #[serde(tag = "command", rename_all = "camelCase")]
 pub enum Command {
     Start,
@@ -20,10 +26,33 @@ pub enum Command {
     SwitchToPreviousComparison,
     SwitchToNextComparison,
     InitializeGameTime,
+    SetGameTime {
+        /// The time to set the game time to.
+        #[serde(serialize_with = "serialize_time_span")]
+        time: TimeSpan,
+    },
     PauseGameTime,
     ResumeGameTime,
     GetCurrentState,
     Ping,
+}
+
+impl TimeSpan {
+    pub const fn to_seconds_and_subsec_nanoseconds(&self) -> (i64, i32) {
+        (self.0.as_secs() as i64, self.0.subsec_nanos() as i32)
+    }
+
+    pub fn from_seconds(seconds: f64) -> Self {
+        Self(Duration::from_secs_f64(seconds))
+    }
+}
+
+fn serialize_time_span<S: Serializer>(
+    time_span: &TimeSpan,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let (secs, nanos) = time_span.to_seconds_and_subsec_nanoseconds();
+    serializer.collect_str(&format_args!("{secs}.{:09}", nanos.abs()))
 }
 
 #[derive(serde_derive::Deserialize, Debug)]
@@ -63,9 +92,7 @@ pub enum CommandError {
     },
 }
 
-#[derive(
-    Debug, serde_derive::Serialize, serde_derive::Deserialize,
-)]
+#[derive(Debug, serde_derive::Serialize, serde_derive::Deserialize)]
 #[non_exhaustive]
 #[serde(tag = "event")]
 pub enum Event {
