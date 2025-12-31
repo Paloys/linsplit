@@ -10,19 +10,19 @@ use std::{
 
 pub struct GameData {
     mem_reader: EverestMemReader,
-    chapter_complete: bool,
-    level_name: String,
-    area_id: i32,
-    area_difficulty: i32,
-    chapter_started: bool,
-    game_time: f64,
-    level_time: f64,
-    strawberries: u32,
-    cassettes: u32,
-    chapter_cassette_collected: bool,
-    heart_gems: u32,
-    chapter_heart_collected: bool,
-    starting_new_file: bool,
+    pub chapter_complete: bool,
+    pub level_name: String,
+    pub area_id: i32,
+    pub area_difficulty: i32,
+    pub chapter_started: bool,
+    pub game_time: f64,
+    pub level_time: f64,
+    pub strawberries: u32,
+    pub cassettes: u32,
+    pub chapter_cassette_collected: bool,
+    pub heart_gems: u32,
+    pub chapter_heart_collected: bool,
+    pub starting_new_file: bool,
 }
 
 impl GameData {
@@ -47,7 +47,10 @@ impl GameData {
 
     pub fn update(&mut self) {
         self.chapter_complete = self.mem_reader.chapter_complete().unwrap_or(false);
-        self.level_name = self.mem_reader.level_name().unwrap_or(String::from("Unknown"));
+        self.level_name = self
+            .mem_reader
+            .level_name()
+            .unwrap_or(String::from("Unknown"));
         self.area_id = self.mem_reader.area_id().unwrap_or(-2);
         self.area_difficulty = self.mem_reader.area_difficulty().unwrap_or(0);
         self.chapter_started = self.mem_reader.chapter_started().unwrap_or(false);
@@ -55,7 +58,10 @@ impl GameData {
         self.level_time = self.mem_reader.level_time().unwrap_or(0.0);
         self.strawberries = self.mem_reader.strawberries().unwrap_or(0);
         self.cassettes = self.mem_reader.cassettes().unwrap_or(0);
-        self.chapter_cassette_collected = self.mem_reader.chapter_cassette_collected().unwrap_or(false);
+        self.chapter_cassette_collected = self
+            .mem_reader
+            .chapter_cassette_collected()
+            .unwrap_or(false);
         self.heart_gems = self.mem_reader.heart_gems().unwrap_or(0);
         self.chapter_heart_collected = self.mem_reader.chapter_heart_collected().unwrap_or(false);
         self.starting_new_file = self.mem_reader.starting_new_file().unwrap_or(false);
@@ -64,7 +70,9 @@ impl GameData {
 
 impl Display for GameData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+        write!(
+            f,
+            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
             format!("chapter_complete: {}", self.chapter_complete),
             format!("level_name: {}", self.level_name),
             format!("area_id: {}", self.area_id),
@@ -74,7 +82,10 @@ impl Display for GameData {
             format!("level_time: {:.3}", self.level_time),
             format!("strawberries: {}", self.strawberries),
             format!("cassettes: {}", self.cassettes),
-            format!("chapter_cassette_collected: {}", self.chapter_cassette_collected),
+            format!(
+                "chapter_cassette_collected: {}",
+                self.chapter_cassette_collected
+            ),
             format!("heart_gems: {}", self.heart_gems),
             format!("chapter_heart_collected: {}", self.chapter_heart_collected),
             format!("starting_new_file: {}", self.starting_new_file),
@@ -86,7 +97,7 @@ struct EverestMemReader {
     _process: Process,
     map: MemoryMap,
     memory: File,
-    _hooked: bool
+    _hooked: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -142,7 +153,7 @@ impl EverestMemReader {
                                 _process: process,
                                 map,
                                 memory,
-                                _hooked: true
+                                _hooked: true,
                             });
                         }
                     }
@@ -161,8 +172,7 @@ impl EverestMemReader {
     }
 
     fn read_vec_global_bits(&mut self, offset: u64, count: usize) -> Result<Vec<u8>> {
-        self.memory
-            .seek(SeekFrom::Start(offset))?;
+        self.memory.seek(SeekFrom::Start(offset))?;
         let mut buf = vec![0; count];
         self.memory.read_exact(&mut buf)?;
         Ok(buf)
@@ -189,9 +199,10 @@ impl EverestMemReader {
             return Err(anyhow!("failed to get level_name_str"));
         }
         let name_len = u16::from_le_bytes(self.read_global_bits(level_name_str - 2)?);
-        Ok(String::from_utf8(
-            self.read_vec_global_bits(level_name_str, name_len as usize)?,
-        )?)
+        Ok(String::from_utf8(self.read_vec_global_bits(
+            level_name_str,
+            name_len as usize,
+        )?)?)
     }
 
     fn area_id(&mut self) -> Result<i32> {

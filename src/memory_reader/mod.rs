@@ -1,2 +1,2 @@
-pub mod reader;
 mod flags;
+pub mod reader;
