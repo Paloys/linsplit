@@ -6,6 +6,13 @@ use std::time::Duration;
 pub struct TimeSpan(Duration);
 
 #[derive(Clone, serde_derive::Serialize)]
+#[repr(u8)]
+pub enum TimingMethod {
+    RealTime = 0,
+    GameTime = 1,
+}
+
+#[derive(Clone, serde_derive::Serialize)]
 #[serde(tag = "command", rename_all = "camelCase")]
 pub enum Command {
     Start,
@@ -24,6 +31,11 @@ pub enum Command {
     UndoAllPauses,
     SwitchToPreviousComparison,
     SwitchToNextComparison,
+        #[serde(rename_all = "camelCase")]
+    SetCurrentTimingMethod {
+        /// The timing method to use.
+        timing_method: TimingMethod,
+    },
     InitializeGameTime,
     SetGameTime {
         /// The time to set the game time to.

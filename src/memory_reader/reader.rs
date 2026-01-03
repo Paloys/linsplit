@@ -5,7 +5,9 @@ use std::{
     error::Error,
     fmt::{self, Display},
     fs::File,
-    io::{Read, Seek, SeekFrom}, thread::sleep, time::Duration,
+    io::{Read, Seek, SeekFrom},
+    thread::sleep,
+    time::Duration,
 };
 
 pub struct GameData {
