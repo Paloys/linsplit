@@ -1,7 +1,5 @@
 use std::fmt::{self, Display};
-use std::fs::read;
 
-use crate::memory_reader::mem_reader;
 
 use super::everest_reader::EverestMemReader;
 use super::mem_reader::MemReader;

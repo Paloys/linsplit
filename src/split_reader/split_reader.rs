@@ -1,6 +1,6 @@
 use anyhow::Result;
 use roxmltree::{Document, NodeId};
-use std::{fs, ops::Index, str::FromStr};
+use std::{fs, str::FromStr};
 use strum_macros::EnumString;
 
 #[derive(EnumString, Debug)]

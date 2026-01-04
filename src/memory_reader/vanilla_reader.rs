@@ -1,28 +1,16 @@
-use crate::memory_reader::flags::{AutoSplitterChapterFlags, AutoSplitterFileFlags};
 use crate::memory_reader::mem_reader::MemReader;
-use anyhow::{Result, anyhow};
-use bitflags::iter;
-use core::time;
+use anyhow::Result;
 use expand_tilde::expand_tilde;
-use procfs::process::{MMPermissions, MMapPath, MemoryMap, Process};
+use procfs::process::{MMPermissions, MMapPath, Process};
 use roxmltree::{Document, NodeId};
-use std::fmt::format;
-use std::path::Path;
 use std::{
-    error::Error,
-    fmt::{self, Display},
     fs::File,
     io::{Read, Seek, SeekFrom},
-    thread::sleep,
-    time::Duration,
 };
-use std::{fs, mem};
+use std::fs;
 
 pub(super) struct VanillaMemReader {
-    process: Process,
-    map: MemoryMap,
     memory: File,
-    hooked: bool,
     offset: u64,
 }
 
@@ -50,7 +38,7 @@ impl VanillaMemReader {
         if times.is_empty() {
             return Ok(None);
         }
-        let mut time = times[1];
+        let time = times[1];
         let all_processes: Vec<Process> = procfs::process::all_processes()
             .expect("Can't read /proc")
             .filter_map(|p| match p {
@@ -88,10 +76,7 @@ impl VanillaMemReader {
                             if &buf[i..i + 8] == needle && buf[i - 16..i].iter().all(|&b| b == 0) {
                                 let position = map.address.0 + i as u64;
                                 return Ok(Some(Box::new(VanillaMemReader {
-                                    process,
-                                    map,
                                     memory,
-                                    hooked: true,
                                     offset: position - 0x28,
                                 })));
                             }

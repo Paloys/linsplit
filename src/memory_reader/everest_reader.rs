@@ -1,10 +1,8 @@
 use crate::memory_reader::flags::{AutoSplitterChapterFlags, AutoSplitterFileFlags};
 use crate::memory_reader::mem_reader::MemReader;
 use anyhow::{Result, anyhow};
-use procfs::process::{MMPermissions, MemoryMap, Process};
+use procfs::process::{MMPermissions, Process};
 use std::{
-    error::Error,
-    fmt::{self, Display},
     fs::File,
     io::{Read, Seek, SeekFrom},
     thread::sleep,
@@ -12,10 +10,8 @@ use std::{
 };
 
 pub(super) struct EverestMemReader {
-    process: Process,
-    map: MemoryMap,
     memory: File,
-    hooked: bool,
+    offset: u64,
 }
 
 impl EverestMemReader {
@@ -52,10 +48,8 @@ impl EverestMemReader {
                                     continue;
                                 }
                                 return Ok(Some(Box::new(Self {
-                                    process,
-                                    map,
                                     memory,
-                                    hooked: true,
+                                    offset: map.address.0
                                 })));
                             }
                         }
@@ -68,7 +62,7 @@ impl EverestMemReader {
 
     fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
         self.memory
-            .seek(SeekFrom::Start(self.map.address.0 + offset))?;
+            .seek(SeekFrom::Start(self.offset + offset))?;
         let mut buf = [0; COUNT];
         self.memory.read_exact(&mut buf)?;
         Ok(buf)
