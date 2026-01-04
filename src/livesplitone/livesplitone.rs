@@ -17,6 +17,7 @@ impl SplitterSocket {
     pub async fn new(addr: &str) -> Result<Self> {
         let socket: TcpListener = TcpListener::bind(&addr).await?;
         println!("Waiting for LiveSplitOne Connection...");
+        println!("Enter ws://{addr} in the LiveSplitOne \"Server Connection\" setting");
         if let Ok((stream, _addr)) = socket.accept().await {
             let ws_stream = tokio_tungstenite::accept_async(stream)
                 .await

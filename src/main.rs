@@ -15,17 +15,15 @@ struct Args {
     splits: String,
 
     /// Address to listen to, for LiveSplitOne to connect to.
-    /// Default is 0.0.0.0, which accepts from any IP
     #[arg(
         short = 'a',
         long = "address",
         value_name = "ADDRESS",
-        default_value = "0.0.0.0"
+        default_value = "127.0.0.1"
     )]
     address: String,
 
     /// Port to listen to, for LiveSplitOne to connect to.
-    /// Default is 51000
     #[arg(
         short = 'p',
         long = "port",
@@ -35,7 +33,6 @@ struct Args {
     port: String,
 
     /// Path to the folder containing the save data (files like 0.celeste),
-    /// default is the Steam Linux default
     #[arg(
         short = 'f',
         long = "save-location",
@@ -50,7 +47,12 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
-    let mut data = LinSplitData::new(&args.splits, &format!("{}:{}", args.address, args.port), &args.save_location).await;
+    let mut data = LinSplitData::new(
+        &args.splits,
+        &format!("{}:{}", args.address, args.port),
+        &args.save_location,
+    )
+    .await;
     data.main_loop().await;
 }
 
