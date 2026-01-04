@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 bitflags = "2.10.0"
+expand-tilde = "0.6.1"
 futures-util = "0.3.31"
 procfs = "0.18.0"
 roxmltree = "0.21.1"

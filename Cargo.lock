@@ -144,6 +144,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "expand-tilde"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af42bffb99c712d4a07c17215b28e22f448b02e9d1481a8a5e05ebd837737f0c"
+dependencies = [
+ "home",
+ "thiserror",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -238,6 +248,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "home"
+version = "0.5.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc627f471c528ff0c4a49e1d5e60450c8f6461dd6d10ba9dcd3a61d3dff7728d"
+dependencies = [
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "http"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -305,6 +324,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bitflags",
+ "expand-tilde",
  "futures-util",
  "procfs",
  "roxmltree",

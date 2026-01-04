@@ -1,4 +1,4 @@
-use crate::memory_reader::reader::GameData;
+use crate::memory_reader::game_data::GameData;
 use crate::split_reader::split_reader::Split;
 
 pub trait Splitter: Sized {
