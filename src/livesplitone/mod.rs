@@ -1,2 +1,2 @@
-pub mod livesplitone;
 pub mod commands;
+pub mod livesplitone;

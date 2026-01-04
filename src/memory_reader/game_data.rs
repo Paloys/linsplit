@@ -1,4 +1,7 @@
 use std::fmt::{self, Display};
+use std::fs::read;
+
+use crate::memory_reader::mem_reader;
 
 use super::everest_reader::EverestMemReader;
 use super::mem_reader::MemReader;
@@ -22,11 +25,22 @@ pub struct GameData {
 }
 
 impl GameData {
-    pub fn new() -> Self {
+    pub fn new(save_location: &str) -> Self {
         println!("Waiting for Celeste...");
+        let mem_reader: Box<dyn MemReader>;
+        loop {
+            if let Ok(Some(reader)) = VanillaMemReader::new(save_location) {
+                println!("Found Vanilla Celeste.");
+                mem_reader = reader;
+                break;
+            } else if let Ok(Some(reader)) = EverestMemReader::new() {
+                println!("Found Everest.");
+                mem_reader = reader;
+                break;
+            }
+        }
         Self {
-            // mem_reader: EverestMemReader::new().expect("Error getting the process").expect("Error getting the process"), // change later, 2nd expect is for an Option
-            mem_reader: VanillaMemReader::new().expect("Error getting the process").expect("Error getting the process"),
+            mem_reader,
             chapter_complete: false,
             level_name: String::new(),
             area_id: 0,

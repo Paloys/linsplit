@@ -81,8 +81,15 @@ impl SplitData {
             auto_reset,
             set_game_time,
             file_time_offset,
-            il_splits: splits.len() == 0 || (chapter_count <= 1 && heart_count <= 1 && area_count <= 1 && cassette_count <= 1),
-            chapter_splits: chapter_count > 0 || heart_count > 0 || area_count > 0 || cassette_count > 0,
+            il_splits: splits.len() == 0
+                || (chapter_count <= 1
+                    && heart_count <= 1
+                    && area_count <= 1
+                    && cassette_count <= 1),
+            chapter_splits: chapter_count > 0
+                || heart_count > 0
+                || area_count > 0
+                || cassette_count > 0,
             splits,
         })
     }

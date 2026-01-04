@@ -27,42 +27,10 @@ pub(super) struct VanillaMemReader {
 }
 
 impl VanillaMemReader {
-    fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
-        self.memory.seek(SeekFrom::Start(self.offset + offset))?;
-        let mut buf = [0; COUNT];
-        self.memory.read_exact(&mut buf)?;
-        Ok(buf)
-    }
-
-    fn read_vec_global_bits(&mut self, offset: u64, count: usize) -> Result<Vec<u16>> {
-        self.memory.seek(SeekFrom::Start(offset))?;
-        let mut buf = vec![0; count];
-        self.memory.read_exact(&mut buf)?;
-        let mut buf2: Vec<u16> = Vec::with_capacity(count / 2);
-        for (i, val) in buf.iter().enumerate() {
-            if i % 2 == 0 {
-                buf2.push(*val as u16);
-            } else {
-                buf2[i / 2] += (*val as u16) << 8;
-            }
-        }
-        Ok(buf2)
-    }
-
-    fn read_global_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
-        self.memory.seek(SeekFrom::Start(offset))?;
-        let mut buf = [0; COUNT];
-        self.memory.read_exact(&mut buf)?;
-        Ok(buf)
-    }
-}
-
-impl MemReader for VanillaMemReader {
-    fn new() -> Result<Option<Box<Self>>> {
+    pub fn new(save_location: &str) -> Result<Option<Box<Self>>> {
         let mut times: Vec<[u8; 8]> = Vec::with_capacity(3);
         for i in 0..3 {
-            let str_path = format!("~/.local/share/Celeste/Saves/{}.celeste", i);
-            let file_path = expand_tilde(&str_path)?;
+            let file_path = expand_tilde(save_location)?.join(format!("{}.celeste", i));
             if file_path.exists() {
                 let t = fs::read_to_string(file_path)?;
                 let u = Document::parse(t.as_str());
@@ -104,8 +72,7 @@ impl MemReader for VanillaMemReader {
                         MMPermissions::READ | MMPermissions::WRITE | MMPermissions::PRIVATE,
                     ) && map.address.1 - map.address.0 >= 24
                     {
-                        if !matches!(map.pathname, MMapPath::Anonymous)
-                        {
+                        if !matches!(map.pathname, MMapPath::Anonymous) {
                             continue;
                         }
                         let size = (map.address.1 - map.address.0) as usize;
@@ -136,6 +103,37 @@ impl MemReader for VanillaMemReader {
         Ok(None)
     }
 
+    fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
+        self.memory.seek(SeekFrom::Start(self.offset + offset))?;
+        let mut buf = [0; COUNT];
+        self.memory.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+
+    fn read_vec_global_bits(&mut self, offset: u64, count: usize) -> Result<Vec<u16>> {
+        self.memory.seek(SeekFrom::Start(offset))?;
+        let mut buf = vec![0; count];
+        self.memory.read_exact(&mut buf)?;
+        let mut buf2: Vec<u16> = Vec::with_capacity(count / 2);
+        for (i, val) in buf.iter().enumerate() {
+            if i % 2 == 0 {
+                buf2.push(*val as u16);
+            } else {
+                buf2[i / 2] += (*val as u16) << 8;
+            }
+        }
+        Ok(buf2)
+    }
+
+    fn read_global_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
+        self.memory.seek(SeekFrom::Start(offset))?;
+        let mut buf = [0; COUNT];
+        self.memory.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+}
+
+impl MemReader for VanillaMemReader {
     fn chapter_complete(&mut self) -> Result<bool> {
         // Celeste.Instance.AutosplitterInfo.ChapterComplete
         return Ok(u8::from_le_bytes(self.read_bits(0x12)?) == 1);

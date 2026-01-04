@@ -6,8 +6,10 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 bitflags = "2.10.0"
+clap = { version = "4.5.54", features = ["derive"] }
 expand-tilde = "0.6.1"
 futures-util = "0.3.31"
+getopts = "0.2.24"
 procfs = "0.18.0"
 roxmltree = "0.21.1"
 serde = "1.0.228"

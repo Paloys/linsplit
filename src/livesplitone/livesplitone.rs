@@ -1,5 +1,3 @@
-use std::result::Result::Ok;
-
 use anyhow::Result;
 use futures_util::{
     SinkExt, TryStreamExt,
@@ -50,9 +48,7 @@ impl SplitterSocket {
         match response {
             Ok(result) => return Ok(Some(result)),
             Err(_) => {
-                if let Ok(_) =
-                    serde_json::from_str::<Event>(msg.to_text()?)
-                {
+                if let Ok(_) = serde_json::from_str::<Event>(msg.to_text()?) {
                     // Hack in case we recieved an event
                     msg = self
                         .incoming

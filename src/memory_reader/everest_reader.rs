@@ -19,31 +19,7 @@ pub(super) struct EverestMemReader {
 }
 
 impl EverestMemReader {
-    fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
-        self.memory
-            .seek(SeekFrom::Start(self.map.address.0 + offset))?;
-        let mut buf = [0; COUNT];
-        self.memory.read_exact(&mut buf)?;
-        Ok(buf)
-    }
-
-    fn read_vec_global_bits(&mut self, offset: u64, count: usize) -> Result<Vec<u8>> {
-        self.memory.seek(SeekFrom::Start(offset))?;
-        let mut buf = vec![0; count];
-        self.memory.read_exact(&mut buf)?;
-        Ok(buf)
-    }
-
-    fn read_global_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
-        self.memory.seek(SeekFrom::Start(offset))?;
-        let mut buf = [0; COUNT];
-        self.memory.read_exact(&mut buf)?;
-        Ok(buf)
-    }
-}
-
-impl MemReader for EverestMemReader {
-    fn new() -> Result<Option<Box<Self>>> {
+    pub fn new() -> Result<Option<Box<Self>>> {
         const CORE_AUTOSPLITTER_MAGIC: &[u8] = b"EVERESTAUTOSPLIT\xF0\xF1\xF2\xF3";
         const CORE_AUTOSPLITTER_INFO_MIN_VERSION: u8 = 3;
         loop {
@@ -73,7 +49,6 @@ impl MemReader for EverestMemReader {
                                 memory.seek(SeekFrom::Current(0x03))?;
                                 memory.read_exact(&mut buf2).unwrap_or(());
                                 if u8::from_be_bytes(buf2) < CORE_AUTOSPLITTER_INFO_MIN_VERSION {
-                                    // println!("Bruh : {:?}", buf2);
                                     continue;
                                 }
                                 return Ok(Some(Box::new(Self {
@@ -91,6 +66,30 @@ impl MemReader for EverestMemReader {
         }
     }
 
+    fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
+        self.memory
+            .seek(SeekFrom::Start(self.map.address.0 + offset))?;
+        let mut buf = [0; COUNT];
+        self.memory.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+
+    fn read_vec_global_bits(&mut self, offset: u64, count: usize) -> Result<Vec<u8>> {
+        self.memory.seek(SeekFrom::Start(offset))?;
+        let mut buf = vec![0; count];
+        self.memory.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+
+    fn read_global_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
+        self.memory.seek(SeekFrom::Start(offset))?;
+        let mut buf = [0; COUNT];
+        self.memory.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+}
+
+impl MemReader for EverestMemReader {
     fn chapter_complete(&mut self) -> Result<bool> {
         Ok(
             AutoSplitterChapterFlags::from_bits(u32::from_le_bytes(self.read_bits(0x4c)?))

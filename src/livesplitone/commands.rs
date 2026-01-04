@@ -31,7 +31,7 @@ pub enum Command {
     UndoAllPauses,
     SwitchToPreviousComparison,
     SwitchToNextComparison,
-        #[serde(rename_all = "camelCase")]
+    #[serde(rename_all = "camelCase")]
     SetCurrentTimingMethod {
         /// The timing method to use.
         timing_method: TimingMethod,

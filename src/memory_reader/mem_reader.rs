@@ -1,9 +1,6 @@
 use anyhow::Result;
 
 pub trait MemReader {
-    fn new() -> Result<Option<Box<Self>>>
-    where
-        Self: Sized;
     fn chapter_complete(&mut self) -> Result<bool>;
     fn level_name(&mut self) -> Result<String>;
     fn area_id(&mut self) -> Result<i32>;
