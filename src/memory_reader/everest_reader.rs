@@ -49,7 +49,7 @@ impl EverestMemReader {
                                 }
                                 return Ok(Some(Box::new(Self {
                                     memory,
-                                    offset: map.address.0
+                                    offset: map.address.0,
                                 })));
                             }
                         }
@@ -61,8 +61,7 @@ impl EverestMemReader {
     }
 
     fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
-        self.memory
-            .seek(SeekFrom::Start(self.offset + offset))?;
+        self.memory.seek(SeekFrom::Start(self.offset + offset))?;
         let mut buf = [0; COUNT];
         self.memory.read_exact(&mut buf)?;
         Ok(buf)

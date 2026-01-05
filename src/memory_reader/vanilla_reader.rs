@@ -3,11 +3,11 @@ use anyhow::Result;
 use expand_tilde::expand_tilde;
 use procfs::process::{MMPermissions, MMapPath, Process};
 use roxmltree::{Document, NodeId};
+use std::fs;
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
 };
-use std::fs;
 
 pub(super) struct VanillaMemReader {
     memory: File,

@@ -1,6 +1,5 @@
 use std::fmt::{self, Display};
 
-
 use super::everest_reader::EverestMemReader;
 use super::mem_reader::MemReader;
 use super::vanilla_reader::VanillaMemReader;
