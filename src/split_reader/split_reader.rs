@@ -3,16 +3,16 @@ use roxmltree::{Document, NodeId};
 use std::{fs, str::FromStr};
 use strum_macros::EnumString;
 
-#[derive(EnumString, Debug)]
+#[derive(EnumString, Debug, Clone)]
 pub enum Split {
     Manual,
     ChapterA,
-    AreaComplete,
-    AreaOnEnter,
-    AreaOnExit,
+    AreaComplete { area: String },
+    AreaOnEnter { area: String },
+    AreaOnExit { area: String },
     HeartGemAny,
-    LevelEnter,
-    LevelExit,
+    LevelEnter { level: String },
+    LevelExit { level: String },
     Prologue,
     Chapter1Checkpoint1,
     Chapter1Checkpoint2,
@@ -78,6 +78,98 @@ pub enum Split {
     Chapter8HeartGem,
 }
 
+impl Split {
+    fn from_str_field(split: &str) -> Result<Self> {
+        if let Ok(split_obj) = Split::from_str(split) {
+            return Ok(split_obj)
+        }
+        let sep: Vec<&str> = split.split(",").collect();
+        if sep.len() != 2 {
+            return Err(anyhow::anyhow!("wrong split"));
+        }
+        if let Some(&split) = sep.get(0)
+            && let Ok(split_obj) = Split::from_str(split)
+        {
+            let area = String::from(sep[1]);
+            match split_obj {
+                Split::AreaComplete { area: _ } => Ok(Split::AreaComplete { area }),
+                Split::AreaOnEnter { area: _ } => Ok(Split::AreaOnEnter { area }),
+                Split::AreaOnExit { area: _ } => Ok(Split::AreaOnExit { area }),
+                Split::LevelEnter { level: _  } => Ok(Split::LevelEnter { level: area }),
+                Split::LevelExit { level: _ } => Ok(Split::LevelExit { level: area }),
+                _ => {Err(anyhow::anyhow!("wrong split type"))}
+            }
+        }
+        else {
+            Err(anyhow::anyhow!("wrong split type"))
+        }
+    }
+}
+
+#[repr(i32)]
+#[derive(PartialEq, Clone, Copy, EnumString, Debug)]
+pub enum Area {
+    Unknown = -2,
+    Menu = -1,
+    Prologue = 0,
+    ForsakenCity = 1,
+    OldSite = 2,
+    CelestialResort = 3,
+    GoldenRidge = 4,
+    MirrorTemple = 5,
+    Reflection = 6,
+    TheSummit = 7,
+    Epilogue = 8,
+    Core = 9,
+    Farewell = 10,
+}
+
+#[repr(i32)]
+#[derive(PartialEq, Clone, Copy, EnumString)]
+pub enum AreaMode {
+    Unknown = -2,
+    None = -1,
+    ASide = 0,
+    BSide = 1,
+    CSide = 2,
+}
+
+impl TryFrom<i32> for Area {
+    type Error = anyhow::Error;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            -1 => Ok(Area::Menu),
+            0 => Ok(Area::Prologue),
+            1 => Ok(Area::ForsakenCity),
+            2 => Ok(Area::OldSite),
+            3 => Ok(Area::CelestialResort),
+            4 => Ok(Area::GoldenRidge),
+            5 => Ok(Area::MirrorTemple),
+            6 => Ok(Area::Reflection),
+            7 => Ok(Area::TheSummit),
+            8 => Ok(Area::Epilogue),
+            9 => Ok(Area::Core),
+            10 => Ok(Area::Farewell),
+            _ => Ok(Area::Unknown),
+        }
+    }
+}
+
+impl TryFrom<i32> for AreaMode {
+    type Error = anyhow::Error;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            -1 => Ok(AreaMode::None),
+            0 => Ok(AreaMode::ASide),
+            1 => Ok(AreaMode::BSide),
+            2 => Ok(AreaMode::CSide),
+            _ => Ok(AreaMode::Unknown),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct SplitData {
     pub auto_reset: bool,
@@ -117,7 +209,7 @@ impl SplitData {
                             for split in child2.children() {
                                 if split.tag_name().name() == "Split" {
                                     if let Some(split_name) = split.text()
-                                        && let Ok(split_obj) = Split::from_str(split_name)
+                                        && let Ok(split_obj) = Split::from_str_field(split_name)
                                     {
                                         splits.push(split_obj);
                                         if split_name.len() == 8 {

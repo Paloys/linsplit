@@ -1,4 +1,5 @@
 use crate::memory_reader::mem_reader::MemReader;
+use crate::split_reader::split_reader::{Area, AreaMode};
 use anyhow::Result;
 use expand_tilde::expand_tilde;
 use procfs::process::{MMPermissions, MMapPath, Process};
@@ -12,6 +13,7 @@ use std::{
 pub(super) struct VanillaMemReader {
     memory: File,
     offset: u64,
+    last_file_time: f64,
 }
 
 impl VanillaMemReader {
@@ -78,6 +80,7 @@ impl VanillaMemReader {
                                 return Ok(Some(Box::new(VanillaMemReader {
                                     memory,
                                     offset: position - 0x28,
+                                    last_file_time: f64::INFINITY
                                 })));
                             }
                         }
@@ -134,14 +137,14 @@ impl MemReader for VanillaMemReader {
         )?)?)
     }
 
-    fn area_id(&mut self) -> Result<i32> {
+    fn area_id(&mut self) -> Result<Area> {
         // Celeste.Instance.AutosplitterInfo.Chapter
-        Ok(i32::from_le_bytes(self.read_bits(0x8)?))
+        Ok(Area::try_from(i32::from_le_bytes(self.read_bits(0x08)?))?)
     }
 
-    fn area_difficulty(&mut self) -> Result<i32> {
+    fn area_difficulty(&mut self) -> Result<AreaMode> {
         // Celeste.Instance.AutosplitterInfo.Mode
-        Ok(i32::from_le_bytes(self.read_bits(0xc)?))
+        Ok(AreaMode::try_from(i32::from_le_bytes(self.read_bits(0x0c)?))?)
     }
 
     fn chapter_started(&mut self) -> Result<bool> {
@@ -151,7 +154,8 @@ impl MemReader for VanillaMemReader {
 
     fn game_time(&mut self) -> Result<f64> {
         // Celeste.Instance.AutosplitterInfo.FileTime
-        Ok(i64::from_le_bytes(self.read_bits(0x28)?) as f64 / 10000000.)
+        self.last_file_time = i64::from_le_bytes(self.read_bits(0x28)?) as f64 / 10000000.;
+        Ok(self.last_file_time)
     }
 
     fn level_time(&mut self) -> Result<f64> {
@@ -185,7 +189,7 @@ impl MemReader for VanillaMemReader {
     }
 
     fn starting_new_file(&mut self) -> Result<bool> {
-        // This one's gonna be annoying
-        todo!()
+        // Let's see if that works
+        Ok(self.last_file_time == 0. && self.last_file_time < self.game_time()?)
     }
 }

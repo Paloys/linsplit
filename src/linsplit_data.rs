@@ -1,15 +1,16 @@
+use std::str::FromStr;
 use std::{thread::sleep, time::Duration};
 
 use crate::livesplitone::commands::{Command, TimeSpan, TimingMethod};
 use crate::livesplitone::livesplitone::SplitterSocket;
 use crate::memory_reader::game_data::GameData;
-use crate::split_reader::split_reader::SplitData;
-use crate::splitter_logic::splitter_logic::Splitter;
+use crate::split_reader::split_reader::{Area, AreaMode, Split, SplitData};
 
 pub struct LinSplitData {
     splits: SplitData,
     socket: SplitterSocket,
     game_data: GameData,
+    exiting_chapter: bool,
 }
 
 impl LinSplitData {
@@ -22,9 +23,114 @@ impl LinSplitData {
             splits,
             socket,
             game_data,
+            exiting_chapter: false,
         }
     }
 
+    fn chapter_split(
+        &mut self,
+        area_id: Area,
+        chapter_area: Area,
+        level: &str,
+        completed: bool,
+        last_completed: bool,
+    ) -> bool {
+        if !self.exiting_chapter {
+            let level_name = if chapter_area == Area::TheSummit {
+                Some(level)
+            } else {
+                None
+            };
+            self.exiting_chapter = area_id == chapter_area
+                && completed
+                && !last_completed
+                && (chapter_area != Area::TheSummit
+                    || (level_name
+                        .is_some_and(|name| !name.to_lowercase().starts_with("credits"))));
+            return self.exiting_chapter && self.splits.il_splits;
+        }
+        !completed && last_completed
+    }
+
+    fn area_complete_split(
+        &mut self,
+        area: &str,
+        area_id: Area,
+        level: &str,
+        completed: bool,
+        last_completed: bool,
+        last_area_difficulty: AreaMode,
+    ) -> bool {
+        let split_info: Vec<&str> = area.split("-").collect();
+        match split_info[..] {
+            [chapter] => {
+                if let Ok(split_area) = Area::from_str(chapter.trim()) {
+                    return self.chapter_split(
+                        area_id,
+                        split_area,
+                        level,
+                        completed,
+                        last_completed,
+                    );
+                }
+                return false;
+            }
+            [chapter, difficulty] => {
+                if let Ok(split_area) = Area::from_str(chapter.trim())
+                    && let Ok(area_difficulty) = AreaMode::from_str(difficulty.trim())
+                {
+                    return self.chapter_split(
+                        area_id,
+                        split_area,
+                        level,
+                        completed,
+                        last_completed,
+                    ) && area_difficulty == last_area_difficulty;
+                }
+                return false;
+            }
+            _ => {
+                return false;
+            }
+        }
+    }
+
+    fn area_change_split(
+        &mut self,
+        area: &str,
+        curr_area_id: Area,
+        area_id_to_check: Area,
+        curr_area_difficulty: AreaMode,
+        area_difficulty_to_check: AreaMode,
+        last_area_id: Area,
+        last_area_difficulty: AreaMode,
+    ) -> bool {
+        let split_info: Vec<&str> = area.split("-").collect();
+        match split_info[..] {
+            [chapter] => {
+                if let Ok(split_area_id) = Area::from_str(chapter.trim()) {
+                    curr_area_id != last_area_id && area_id_to_check == split_area_id
+                } else {
+                    false
+                }
+            }
+            [chapter, difficulty] => {
+                if let Ok(split_area) = Area::from_str(chapter.trim())
+                    && let Ok(area_difficulty) = AreaMode::from_str(difficulty.trim())
+                {
+                    curr_area_id != last_area_id
+                        && area_id_to_check == split_area
+                        && curr_area_difficulty != last_area_difficulty
+                        && area_difficulty_to_check == area_difficulty
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    #[rustfmt::skip]
     pub async fn main_loop(&mut self) {
         let elapsed_offset = self.game_data.game_time;
         let mut current_split: i32 = -1;
@@ -33,6 +139,11 @@ impl LinSplitData {
         let mut level_timer: f64 = 0.;
         let mut last_chapter_started = false;
         let mut last_elapsed = 0.;
+        let mut last_completed = false;
+        let mut last_cassettes = 10000;
+        let mut last_heart_gems = 10000;
+        let mut last_area_id = Area::Unknown;
+        let mut last_area_difficulty = AreaMode::Unknown;
         if self.splits.set_game_time {
             self.socket
                 .send_command(Command::SetCurrentTimingMethod {
@@ -47,7 +158,7 @@ impl LinSplitData {
             if current_split == -1 && (self.splits.splits.len() == 0 || self.splits.chapter_splits)
             {
                 if self.splits.splits.len() == 0 {
-                    let level_name = &self.game_data.level_name;
+                    let level_name = self.game_data.level_name.clone();
 
                     should_split =
                         level_name != "" && last_level_name != "" && *level_name != last_level_name;
@@ -74,7 +185,7 @@ impl LinSplitData {
                         self.game_data.game_time - elapsed_offset
                     } else {
                         if self.splits.il_splits {
-                            if self.game_data.area_id == -1 {
+                            if self.game_data.area_id == Area::Menu {
                                 last_elapsed
                             } else {
                                 self.game_data.level_time
@@ -91,27 +202,142 @@ impl LinSplitData {
                     .splits
                     .splits
                     .get((current_split + add_amount) as usize);
-                let mut level_name = &self.game_data.level_name;
-                if level_name == "" && area_id == -1 {
-                    level_name = &last_level_name
+                let mut level_name = self.game_data.level_name.clone();
+                if level_name == "" && area_id == Area::Menu {
+                    level_name = last_level_name.clone()
                 };
-                // will be useful later
-                // let cassettes = self.game_data.cassettes;
-                // let heart_gems = self.game_data.heart_gems;
-                // let chapter_cassette = self.game_data.chapter_cassette_collected;
-                // let chapter_heart = self.game_data.chapter_heart_collected;
-
+                let cassettes = self.game_data.cassettes;
+                let heart_gems = self.game_data.heart_gems;
+                let chapter_cassette = self.game_data.chapter_cassette_collected;
+                let chapter_heart = self.game_data.chapter_heart_collected;
+                //println!("{:?}", opt_split);
                 if let Some(split) = opt_split {
-                    // TODO: add manual split
-                    should_split = split.should_split()(&self.game_data);
-                    // TODO: add last cassettes, heartsgems, areaID, areaDifficulty for full support
+                    match split {
+                        Split::Manual => {} // TODO: increment split id when a split is detected
+                        Split::LevelEnter { level } => should_split = area_id != Area::Menu && level_name != last_level_name && level.to_lowercase() == level_name.to_lowercase(),
+                        Split::LevelExit { level } => should_split = area_id != Area::Menu && level_name != last_level_name && level.to_lowercase() == last_level_name.to_lowercase(),
+                        Split::ChapterA => {
+                            should_split = self.chapter_split(
+                                Area::Prologue,
+                                Area::Prologue,
+                                &level_name,
+                                completed,
+                                last_completed,
+                            )
+                        }
+                        Split::AreaComplete { area } => {
+                            let area = area.clone(); // TODO: find clean way to do that
+                            should_split = self.area_complete_split(
+                                &area,
+                                area_id,
+                                &level_name,
+                                completed,
+                                last_completed,
+                                last_area_difficulty,
+                            )
+                        }
+                        Split::AreaOnEnter { area } => {
+                            let area = area.clone();
+                            should_split = self.area_change_split(
+                                &area,
+                                area_id,
+                                area_id,
+                                area_difficulty,
+                                area_difficulty,
+                                last_area_id,
+                                last_area_difficulty,
+                            )
+                        }
+                        Split::AreaOnExit { area } => {
+                            let area = area.clone();
+                            should_split = self.area_change_split(
+                                &area,
+                                area_id,
+                                last_area_id,
+                                area_difficulty,
+                                last_area_difficulty,
+                                last_area_id,
+                                last_area_difficulty,
+                            )
+                        }
+                        Split::Prologue => should_split = self.chapter_split(area_id, Area::Prologue, &level_name, completed, last_completed),
+                        Split::Chapter1 => should_split = self.chapter_split(area_id, Area::ForsakenCity, &level_name, completed, last_completed),
+                        Split::Chapter2 => should_split = self.chapter_split(area_id, Area::OldSite, &level_name, completed, last_completed),
+                        Split::Chapter3 => should_split = self.chapter_split(area_id, Area::CelestialResort, &level_name, completed, last_completed),
+                        Split::Chapter4 => should_split = self.chapter_split(area_id, Area::GoldenRidge, &level_name, completed, last_completed),
+                        Split::Chapter5 => should_split = self.chapter_split(area_id, Area::MirrorTemple, &level_name, completed, last_completed),
+                        Split::Chapter6 => should_split = self.chapter_split(area_id, Area::Reflection, &level_name, completed, last_completed),
+                        Split::Chapter7 => should_split = self.chapter_split(area_id, Area::TheSummit, &level_name, completed, last_completed),
+                        Split::Epilogue => should_split = self.chapter_split(area_id, Area::Epilogue, &level_name, completed, last_completed),
+                        Split::Chapter8 => should_split = self.chapter_split(area_id, Area::Core, &level_name, completed, last_completed),
+                        Split::Chapter9 => should_split = self.chapter_split(area_id, Area::Farewell, &level_name, completed, last_completed),
+                        Split::Chapter1Checkpoint1 => should_split = area_id == Area::ForsakenCity && ((area_difficulty == AreaMode::ASide && level_name == "6") || (area_difficulty != AreaMode::ASide && level_name == "04")),
+                        Split::Chapter1Checkpoint2 => should_split = area_id == Area::ForsakenCity && ((area_difficulty == AreaMode::ASide && level_name == "9b") || (area_difficulty != AreaMode::ASide && level_name == "08")),
+                        Split::Chapter2Checkpoint1 => should_split = area_id == Area::OldSite && ((area_difficulty == AreaMode::ASide && level_name == "3") || (area_difficulty != AreaMode::ASide && level_name == "03")),
+                        Split::Chapter2Checkpoint2 => should_split = area_id == Area::OldSite && ((area_difficulty == AreaMode::ASide && level_name == "end_3") || (area_difficulty != AreaMode::ASide && level_name == "08b")),
+                        Split::Chapter3Checkpoint1 => should_split = area_id == Area::CelestialResort && ((area_difficulty == AreaMode::ASide && level_name == "08-a") || (area_difficulty != AreaMode::ASide && level_name == "06")),
+                        Split::Chapter3Checkpoint2 => should_split = area_id == Area::CelestialResort && ((area_difficulty == AreaMode::ASide && level_name == "09-d") || (area_difficulty != AreaMode::ASide && level_name == "11")),
+                        Split::Chapter3Checkpoint3 => should_split = area_id == Area::CelestialResort && ((area_difficulty == AreaMode::ASide && level_name == "00-d") || (area_difficulty != AreaMode::ASide && level_name == "16")),
+                        Split::Chapter4Checkpoint1 => should_split = area_id == Area::GoldenRidge && level_name == "b-00",
+                        Split::Chapter4Checkpoint2 => should_split = area_id == Area::GoldenRidge && level_name == "c-00",
+                        Split::Chapter4Checkpoint3 => should_split = area_id == Area::GoldenRidge && level_name == "d-00",
+                        Split::Chapter5Checkpoint1 => should_split = area_id == Area::MirrorTemple && level_name == "b-00",
+                        Split::Chapter5Checkpoint2 => should_split = area_id == Area::MirrorTemple && level_name == "c-00",
+                        Split::Chapter5Checkpoint3 => should_split = area_id == Area::MirrorTemple && level_name == "d-00",
+                        Split::Chapter5Checkpoint4 => should_split = area_id == Area::MirrorTemple && level_name == "e-00",
+                        Split::Chapter6Checkpoint1 => should_split = area_id == Area::Reflection && ((area_difficulty == AreaMode::ASide && level_name == "00") || (area_difficulty != AreaMode::ASide && level_name == "b-00")),
+                        Split::Chapter6Checkpoint2 => should_split = area_id == Area::Reflection && ((area_difficulty == AreaMode::ASide && level_name == "04") || (area_difficulty != AreaMode::ASide && level_name == "c-00")),
+                        Split::Chapter6Checkpoint3 => should_split = area_id == Area::Reflection && ((area_difficulty == AreaMode::ASide && level_name == "b-00") || (area_difficulty != AreaMode::ASide && level_name == "d-00")),
+                        Split::Chapter6Checkpoint4 => should_split = area_id == Area::Reflection && level_name == "boss-00",
+                        Split::Chapter6Checkpoint5 => should_split = area_id == Area::Reflection && level_name == "after-00",
+                        Split::Chapter7Checkpoint1 => should_split = area_id == Area::TheSummit && level_name == "b-00",
+                        Split::Chapter7Checkpoint2 => should_split = area_id == Area::TheSummit && ((area_difficulty == AreaMode::ASide && level_name == "c-00") || (area_difficulty != AreaMode::ASide && level_name == "c-01")),
+                        Split::Chapter7Checkpoint3 => should_split = area_id == Area::TheSummit && level_name == "d-00",
+                        Split::Chapter7Checkpoint4 => should_split = area_id == Area::TheSummit && ((area_difficulty == AreaMode::ASide && level_name == "e-00b") || (area_difficulty != AreaMode::ASide && level_name == "e-00")),
+                        Split::Chapter7Checkpoint5 => should_split = area_id == Area::TheSummit && level_name == "f-00",
+                        Split::Chapter7Checkpoint6 => should_split = area_id == Area::TheSummit && level_name == "g-00",
+                        Split::Chapter8Checkpoint1 => should_split = area_id == Area::Core && level_name == "a-00",
+                        Split::Chapter8Checkpoint2 => should_split = area_id == Area::Core && ((area_difficulty == AreaMode::ASide && level_name == "c-00") || (area_difficulty != AreaMode::ASide && level_name == "b-00")),
+                        Split::Chapter8Checkpoint3 => should_split = area_id == Area::Core && ((area_difficulty == AreaMode::ASide && level_name == "d-00") || (area_difficulty != AreaMode::ASide && level_name == "c-01")),
+                        Split::Chapter9Checkpoint1 => should_split = area_id == Area::Farewell && level_name == "a-00",
+                        Split::Chapter9Checkpoint2 => should_split = area_id == Area::Farewell && level_name == "c-00",
+                        Split::Chapter9Checkpoint3 => should_split = area_id == Area::Farewell && level_name == "e-00z",
+                        Split::Chapter9Checkpoint4 => should_split = area_id == Area::Farewell && level_name == "f-door",
+                        Split::Chapter9Checkpoint5 => should_split = area_id == Area::Farewell && level_name == "h-00b",
+                        Split::Chapter9Checkpoint6 => should_split = area_id == Area::Farewell && level_name == "i-00",
+                        Split::Chapter9Checkpoint7 => should_split = area_id == Area::Farewell && level_name == "j-00",
+                        Split::Chapter9Checkpoint8 => should_split = area_id == Area::Farewell && level_name == "j-16",
+                        Split::HeartGemAny => should_split = ((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1,
+                        Split::Chapter1Cassette => should_split = area_id == Area::ForsakenCity && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_cassette) || cassettes == last_cassettes + 1),
+                        Split::Chapter1HeartGem => should_split = area_id == Area::ForsakenCity && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1),
+                        Split::Chapter2Cassette => should_split = area_id == Area::OldSite && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_cassette) || cassettes == last_cassettes + 1),
+                        Split::Chapter2HeartGem => should_split = area_id == Area::OldSite && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1),
+                        Split::Chapter3Cassette => should_split = area_id == Area::CelestialResort && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_cassette) || cassettes == last_cassettes + 1),
+                        Split::Chapter3HeartGem => should_split = area_id == Area::CelestialResort && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1),
+                        Split::Chapter4Cassette => should_split = area_id == Area::GoldenRidge && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_cassette) || cassettes == last_cassettes + 1),
+                        Split::Chapter4HeartGem => should_split = area_id == Area::GoldenRidge && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1),
+                        Split::Chapter5Cassette => should_split = area_id == Area::MirrorTemple && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_cassette) || cassettes == last_cassettes + 1),
+                        Split::Chapter5HeartGem => should_split = area_id == Area::MirrorTemple && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1),
+                        Split::Chapter6Cassette => should_split = area_id == Area::Reflection && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_cassette) || cassettes == last_cassettes + 1),
+                        Split::Chapter6HeartGem => should_split = area_id == Area::Reflection && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1),
+                        Split::Chapter7Cassette => should_split = area_id == Area::TheSummit && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_cassette) || cassettes == last_cassettes + 1),
+                        Split::Chapter7HeartGem => should_split = area_id == Area::TheSummit && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1),
+                        Split::Chapter8Cassette => should_split = area_id == Area::Core && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_cassette) || cassettes == last_cassettes + 1),
+                        Split::Chapter8HeartGem => should_split = area_id == Area::Core && (((self.splits.il_splits || self.splits.file_time_offset) && chapter_heart) || heart_gems == last_heart_gems + 1),
+                    }
+                    last_cassettes = cassettes;
+                    last_heart_gems = heart_gems;
+                    last_area_id = area_id;
+                    last_area_difficulty = area_difficulty;
                 }
 
                 if should_split && add_amount > 0 && current_split < 0 {
                     level_timer = self.game_data.level_time;
                 }
 
-                // TODO: Add last_completed and level_name
+                last_completed = completed;
+                last_level_name = level_name;
+
                 if elapsed > 0. || last_elapsed == elapsed {
                     self.socket
                         .send_command(Command::SetGameTime {
@@ -129,8 +355,9 @@ impl LinSplitData {
 
                 last_elapsed = elapsed;
             }
-            let should_reset =
-                self.splits.auto_reset && self.splits.il_splits && self.game_data.area_id == -1;
+            let should_reset = self.splits.auto_reset
+                && self.splits.il_splits
+                && self.game_data.area_id == Area::Menu;
             if should_reset {
                 self.socket
                     .send_command(Command::Reset {
@@ -139,12 +366,14 @@ impl LinSplitData {
                     .await
                     .unwrap();
                 current_split = -1;
+                self.exiting_chapter = false;
             } else if should_split {
                 self.socket
                     .send_command(Command::SplitOrStart)
                     .await
                     .unwrap();
                 current_split += 1;
+                self.exiting_chapter = false;
             }
 
             sleep(Duration::from_millis(1));

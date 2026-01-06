@@ -1,10 +1,12 @@
 use anyhow::Result;
 
+use crate::split_reader::split_reader::{Area, AreaMode};
+
 pub trait MemReader {
     fn chapter_complete(&mut self) -> Result<bool>;
     fn level_name(&mut self) -> Result<String>;
-    fn area_id(&mut self) -> Result<i32>;
-    fn area_difficulty(&mut self) -> Result<i32>;
+    fn area_id(&mut self) -> Result<Area>;
+    fn area_difficulty(&mut self) -> Result<AreaMode>;
     fn chapter_started(&mut self) -> Result<bool>;
     fn game_time(&mut self) -> Result<f64>;
     fn level_time(&mut self) -> Result<f64>;

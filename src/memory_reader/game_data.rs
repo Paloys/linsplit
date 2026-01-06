@@ -1,5 +1,7 @@
 use std::fmt::{self, Display};
 
+use crate::split_reader::split_reader::{Area, AreaMode};
+
 use super::everest_reader::EverestMemReader;
 use super::mem_reader::MemReader;
 use super::vanilla_reader::VanillaMemReader;
@@ -8,8 +10,8 @@ pub struct GameData {
     mem_reader: Box<dyn MemReader>,
     pub chapter_complete: bool,
     pub level_name: String,
-    pub area_id: i32,
-    pub area_difficulty: i32,
+    pub area_id: Area,
+    pub area_difficulty: AreaMode,
     pub chapter_started: bool,
     pub game_time: f64,
     pub level_time: f64,
@@ -20,6 +22,8 @@ pub struct GameData {
     pub chapter_heart_collected: bool,
     pub starting_new_file: bool,
 }
+
+
 
 impl GameData {
     pub fn new(save_location: &str) -> Self {
@@ -40,8 +44,8 @@ impl GameData {
             mem_reader,
             chapter_complete: false,
             level_name: String::new(),
-            area_id: 0,
-            area_difficulty: 0,
+            area_id: Area::Menu,
+            area_difficulty: AreaMode::None,
             chapter_started: false,
             game_time: 0.0,
             level_time: 0.0,
@@ -55,13 +59,14 @@ impl GameData {
     }
 
     pub fn update(&mut self) {
+        self.starting_new_file = self.mem_reader.starting_new_file().unwrap_or(false);
         self.chapter_complete = self.mem_reader.chapter_complete().unwrap_or(false);
         self.level_name = self
             .mem_reader
             .level_name()
             .unwrap_or(String::from("Unknown"));
-        self.area_id = self.mem_reader.area_id().unwrap_or(-2);
-        self.area_difficulty = self.mem_reader.area_difficulty().unwrap_or(0);
+        self.area_id = self.mem_reader.area_id().unwrap_or(Area::Unknown);
+        self.area_difficulty = self.mem_reader.area_difficulty().unwrap_or(AreaMode::Unknown);
         self.chapter_started = self.mem_reader.chapter_started().unwrap_or(false);
         self.game_time = self.mem_reader.game_time().unwrap_or(0.0);
         self.level_time = self.mem_reader.level_time().unwrap_or(0.0);
@@ -73,7 +78,6 @@ impl GameData {
             .unwrap_or(false);
         self.heart_gems = self.mem_reader.heart_gems().unwrap_or(0);
         self.chapter_heart_collected = self.mem_reader.chapter_heart_collected().unwrap_or(false);
-        // self.starting_new_file = self.mem_reader.starting_new_file().unwrap_or(false);
     }
 }
 
@@ -81,11 +85,11 @@ impl Display for GameData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
             format!("chapter_complete: {}", self.chapter_complete),
             format!("level_name: {}", self.level_name),
-            format!("area_id: {}", self.area_id),
-            format!("area_difficulty: {}", self.area_difficulty),
+            // format!("area_id: {}", self.area_id), TODO fix this
+            // format!("area_difficulty: {}", self.area_difficulty), TODO maybe fix this
             format!("chapter_started: {}", self.chapter_started),
             format!("game_time: {:.3}", self.game_time),
             format!("level_time: {:.3}", self.level_time),

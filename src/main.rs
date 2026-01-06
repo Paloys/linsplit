@@ -2,7 +2,6 @@ mod linsplit_data;
 mod livesplitone;
 mod memory_reader;
 mod split_reader;
-mod splitter_logic;
 
 use crate::linsplit_data::LinSplitData;
 use clap::Parser;
