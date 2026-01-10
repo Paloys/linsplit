@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fs::read, sync::Arc};
+use std::{collections::VecDeque, sync::Arc};
 
 use tokio::sync::{Mutex, Notify};
 
@@ -60,7 +60,6 @@ impl SplitterSocket {
             .await
             .send(Message::text(serde_json::to_string(&command)?))
             .await?;
-
         // Wait for the response
         self.response_notification.notified().await;
         let response = self.responses.lock().await.pop_front();
