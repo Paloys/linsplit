@@ -76,16 +76,17 @@ pub enum Response {
     State(State),
 }
 
+#[allow(dead_code)]
 #[derive(serde_derive::Deserialize, Debug)]
 #[serde(tag = "code")]
 pub enum CommandError {
     InvalidCommand {
-        _message: String,
+        message: String,
     },
     InvalidIndex,
     #[serde(untagged)]
     Timer {
-        _code: EventError,
+        code: EventError,
     },
 }
 
