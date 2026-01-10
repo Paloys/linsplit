@@ -2,6 +2,9 @@
 name = "linsplit"
 version = "0.1.0"
 edition = "2024"
+authors = ["Paloys"]
+description = "An autosplitter for the game Celeste, working on Linux!"
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0.100"
