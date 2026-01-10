@@ -16,11 +16,12 @@ If/when the projet gets big enough, I might try to upload it to various package 
 
 To use it, just run it using `linsplit` if it's in your path, or with `./linsplit` wherever you put the executable if not.
 LinSplit will then start listening on a port for a LiveSplit One connection. Once it has connected to LiveSplit One, it'll start searching for either Celeste or Everest (the modded version of Celeste) in the memory.
-The way LinSplit detects Vanilla Celeste in by finding a specific object in the memory of the program by parsing your save files for your file timers (if you're not using the game from Steam, you might want to change the location with the `-f` argument). It is recommended you start LinSplit inside an already started game file, while inside the menu (the 3D map where you choose your chapter). If it fails to detect on the first time, interrupt linsplit with Ctrl-C and try again.
+The way LinSplit detects Vanilla Celeste in by finding a specific object in the memory of the program by parsing your save files for your file timers (if you're not using the game from Steam, you might want to change the location with the `-f` argument). 
+It is recommended you start LinSplit inside an already started game file, while inside the menu (the 3D map where you choose your chapter). If it fails to detect on the first time, interrupt linsplit with Ctrl-C and try again.
 
 ### Arguments
 
-You can pass arguments to linsplit to change LinSplit's behaviour. All arguments can be detailed by running `linsplit --help`.
+You can pass arguments to LinSplit to change its behaviour. All arguments can be detailed by running `linsplit --help`.
 The only required argument is your splits file (with the `-s` argument), which is the same file you're using on LiveSplit One, or on LiveSplit if you came from Windows.
 
 
