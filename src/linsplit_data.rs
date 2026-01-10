@@ -19,7 +19,7 @@ pub struct LinSplitData {
     event_notifications: Arc<Notify>,
     current_split: Mutex<i32>,
     last_area_id: Mutex<Area>,
-    last_area_difficulty: Mutex<AreaMode>
+    last_area_difficulty: Mutex<AreaMode>,
 }
 
 impl LinSplitData {
@@ -42,7 +42,7 @@ impl LinSplitData {
             event_notifications,
             current_split: Mutex::new(-1),
             last_area_id: Mutex::new(Area::Unknown),
-            last_area_difficulty: Mutex::new(AreaMode::Unknown)
+            last_area_difficulty: Mutex::new(AreaMode::Unknown),
         });
         let data_loop = Arc::clone(&data);
         tokio::spawn(async move { data_loop.event_loop().await });
@@ -56,25 +56,25 @@ impl LinSplitData {
                 match event {
                     Event::Started => {
                         *self.current_split.lock().await = 0;
-                    },
+                    }
                     Event::Splitted | Event::Finished => {
                         *self.current_split.lock().await += 1;
                         *self.exiting_chapter.write().await = false;
-                    },
+                    }
                     Event::Reset => {
                         *self.current_split.lock().await = -1;
                         *self.exiting_chapter.write().await = false;
                         *self.last_area_id.lock().await = Area::Unknown;
                         *self.last_area_difficulty.lock().await = AreaMode::Unknown;
-                    },
+                    }
                     Event::SplitUndone => {
                         *self.current_split.lock().await -= 1;
                         *self.exiting_chapter.write().await = false;
-                    },
+                    }
                     Event::SplitSkipped => {
                         *self.current_split.lock().await += 1;
                         *self.exiting_chapter.write().await = false;
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -95,7 +95,7 @@ impl LinSplitData {
             } else {
                 None
             };
-            let mut chap = self.exiting_chapter.write().await; 
+            let mut chap = self.exiting_chapter.write().await;
             *chap = area_id == chapter_area
                 && completed
                 && !last_completed
@@ -119,13 +119,9 @@ impl LinSplitData {
         match split_info[..] {
             [chapter] => {
                 if let Ok(split_area) = Area::from_str(chapter.trim()) {
-                    return self.chapter_split(
-                        area_id,
-                        split_area,
-                        level,
-                        completed,
-                        last_completed,
-                    ).await;
+                    return self
+                        .chapter_split(area_id, split_area, level, completed, last_completed)
+                        .await;
                 }
                 return false;
             }
@@ -133,13 +129,10 @@ impl LinSplitData {
                 if let Ok(split_area) = Area::from_str(chapter.trim())
                     && let Ok(area_difficulty) = AreaMode::from_str(difficulty.trim())
                 {
-                    return self.chapter_split(
-                        area_id,
-                        split_area,
-                        level,
-                        completed,
-                        last_completed,
-                    ).await && area_difficulty == *self.last_area_difficulty.lock().await;
+                    return self
+                        .chapter_split(area_id, split_area, level, completed, last_completed)
+                        .await
+                        && area_difficulty == *self.last_area_difficulty.lock().await;
                 }
                 return false;
             }
@@ -161,8 +154,9 @@ impl LinSplitData {
         match split_info[..] {
             [chapter] => {
                 if let Ok(split_area_id) = Area::from_str(chapter.trim()) {
-                    return curr_area_id != *self.last_area_id.lock().await && area_id_to_check == split_area_id
-                } 
+                    return curr_area_id != *self.last_area_id.lock().await
+                        && area_id_to_check == split_area_id;
+                }
             }
             [chapter, difficulty] => {
                 if let Ok(split_area) = Area::from_str(chapter.trim())
@@ -171,10 +165,10 @@ impl LinSplitData {
                     return curr_area_id != *self.last_area_id.lock().await
                         && area_id_to_check == split_area
                         && curr_area_difficulty != *self.last_area_difficulty.lock().await
-                        && area_difficulty_to_check == area_difficulty
-                } 
+                        && area_difficulty_to_check == area_difficulty;
+                }
             }
-            _ => {},
+            _ => {}
         };
         false
     }
@@ -183,7 +177,7 @@ impl LinSplitData {
     pub async fn main_loop(&self) {
         let elapsed_offset = self.game_data.read().await.game_time;
         let mut last_level_name: String = Default::default();
-        let mut level_started: String = Default::default();
+        let mut _level_started: String = Default::default(); // Might be useful for later, cf https://github.com/ShootMe/LiveSplit.Celeste/blob/5c5bcb2c1456ee04a241575608febb9d35f69084/SplitterComponent.cs#L185
         let mut level_timer: f64 = 0.;
         let mut last_chapter_started = false;
         let mut last_elapsed = 0.;
@@ -211,7 +205,7 @@ impl LinSplitData {
                         level_name != "" && last_level_name != "" && *level_name != last_level_name;
 
                     if should_split {
-                        level_started = last_level_name.clone();
+                        _level_started = last_level_name.clone();
                         level_timer = self.game_data.read().await.level_time;
                     }
                     last_level_name = level_name.clone();

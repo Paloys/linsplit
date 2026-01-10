@@ -8,44 +8,28 @@ pub struct TimeSpan(Duration);
 #[derive(Clone, serde_derive::Serialize)]
 #[repr(u8)]
 pub enum TimingMethod {
-    RealTime = 0,
     GameTime = 1,
 }
 
 #[derive(Clone, serde_derive::Serialize)]
 #[serde(tag = "command", rename_all = "camelCase")]
 pub enum Command {
-    Start,
-    Split,
     SplitOrStart,
     #[serde(rename_all = "camelCase")]
     Reset {
         #[serde(skip_serializing_if = "Option::is_none")]
         save_attempt: Option<bool>,
     },
-    UndoSplit,
-    SkipSplit,
-    TogglePauseOrStart,
-    Pause,
-    Resume,
-    UndoAllPauses,
-    SwitchToPreviousComparison,
-    SwitchToNextComparison,
     #[serde(rename_all = "camelCase")]
     SetCurrentTimingMethod {
         /// The timing method to use.
         timing_method: TimingMethod,
     },
-    InitializeGameTime,
     SetGameTime {
         /// The time to set the game time to.
         #[serde(serialize_with = "serialize_time_span")]
         time: TimeSpan,
     },
-    PauseGameTime,
-    ResumeGameTime,
-    GetCurrentState,
-    Ping,
 }
 
 impl TimeSpan {
@@ -66,6 +50,7 @@ fn serialize_time_span<S: Serializer>(
     serializer.collect_str(&format_args!("{secs}.{:09}", nanos.abs()))
 }
 
+#[allow(unused)]
 #[derive(serde_derive::Deserialize, Debug)]
 #[serde(tag = "state", content = "index")]
 enum State {
@@ -82,6 +67,7 @@ pub enum CommandResult<T, E> {
     Error(E),
 }
 
+#[allow(unused, private_interfaces)]
 #[derive(serde_derive::Deserialize, Debug)]
 #[serde(untagged)]
 pub enum Response {
@@ -94,12 +80,12 @@ pub enum Response {
 #[serde(tag = "code")]
 pub enum CommandError {
     InvalidCommand {
-        message: String,
+        _message: String,
     },
     InvalidIndex,
     #[serde(untagged)]
     Timer {
-        code: EventError,
+        _code: EventError,
     },
 }
 
