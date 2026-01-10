@@ -2,15 +2,27 @@
 
 A Rust reimplementation of [the Celeste AutoSplitter](https://github.com/ShootMe/LiveSplit.Celeste), for Linux.
 
-## Usage
+## Installation
 
 You can just install it using [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html), if you've got it installed : 
 ```
 cargo install linsplit
 ```
 
-If you don't have cargo installed, you can download binaries from the Releases tab (I might forgot to upload the binaries, open an issue if one is missing !)
-If/when the projet gets big enough, I might try to upload it to various package managers. 
+If you don't have cargo installed, you can download binaries from the [Releases](https://github.com/Paloys/linsplit/releases) tab.
+If/when the projet gets big enough, I might try to upload it to various package managers.
+
+## Usage
+
+To use it, just run it using `linsplit` if it's in your path, or with `./linsplit` wherever you put the executable if not.
+LinSplit will then start listening on a port for a LiveSplit One connection. Once it has connected to LiveSplit One, it'll start searching for either Celeste or Everest (the modded version of Celeste) in the memory.
+The way LinSplit detects Vanilla Celeste in by finding a specific object in the memory of the program by parsing your save files for your file timers (if you're not using the game from Steam, you might want to change the location with the `-f` argument). It is recommended you start LinSplit inside an already started game file, while inside the menu (the 3D map where you choose your chapter). If it fails to detect on the first time, interrupt linsplit with Ctrl-C and try again.
+
+### Arguments
+
+You can pass arguments to linsplit to change LinSplit's behaviour. All arguments can be detailed by running `linsplit --help`.
+The only required argument is your splits file (with the `-s` argument), which is the same file you're using on LiveSplit One, or on LiveSplit if you came from Windows.
+
 
 ## Bug reporting / Suggestions
 
