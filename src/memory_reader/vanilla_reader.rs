@@ -80,7 +80,7 @@ impl VanillaMemReader {
                                 return Ok(Some(Box::new(VanillaMemReader {
                                     memory,
                                     offset: position - 0x28,
-                                    last_file_time: f64::INFINITY
+                                    last_file_time: f64::INFINITY,
                                 })));
                             }
                         }
@@ -144,7 +144,9 @@ impl MemReader for VanillaMemReader {
 
     fn area_difficulty(&mut self) -> Result<AreaMode> {
         // Celeste.Instance.AutosplitterInfo.Mode
-        Ok(AreaMode::try_from(i32::from_le_bytes(self.read_bits(0x0c)?))?)
+        Ok(AreaMode::try_from(i32::from_le_bytes(
+            self.read_bits(0x0c)?,
+        ))?)
     }
 
     fn chapter_started(&mut self) -> Result<bool> {

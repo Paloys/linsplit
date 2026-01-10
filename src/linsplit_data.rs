@@ -1,59 +1,82 @@
+use std::collections::VecDeque;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::{thread::sleep, time::Duration};
 
-use crate::livesplitone::commands::{Command, TimeSpan, TimingMethod};
+use tokio::sync::{Mutex, Notify, RwLock};
+
+use crate::livesplitone::commands::{Command, Event, TimeSpan, TimingMethod};
 use crate::livesplitone::livesplitone::SplitterSocket;
 use crate::memory_reader::game_data::GameData;
 use crate::split_reader::split_reader::{Area, AreaMode, Split, SplitData};
 
 pub struct LinSplitData {
     splits: SplitData,
-    socket: SplitterSocket,
-    game_data: GameData,
-    exiting_chapter: bool,
+    socket: Arc<SplitterSocket>,
+    game_data: RwLock<GameData>,
+    exiting_chapter: RwLock<bool>,
+    events: Arc<Mutex<VecDeque<Event>>>,
+    event_notifications: Arc<Notify>,
 }
 
 impl LinSplitData {
-    pub async fn new(file_path: &str, addr: &str, save_location: &str) -> Self {
+    pub async fn new(file_path: &str, addr: &str, save_location: &str) -> Arc<Self> {
+        let events = Arc::new(Mutex::new(VecDeque::new()));
+        let event_notifications = Arc::new(Notify::new());
         let splits = SplitData::read_splits(file_path).unwrap();
-        let socket = SplitterSocket::new(addr).await.unwrap();
-        let game_data = GameData::new(save_location);
+        let socket =
+            SplitterSocket::new(addr, Arc::clone(&events), Arc::clone(&event_notifications))
+                .await
+                .unwrap();
+        let game_data = RwLock::new(GameData::new(save_location));
         // tokio::time::sleep(Duration::from_secs(3)).await;
-        LinSplitData {
+        let data = Arc::new(LinSplitData {
             splits,
             socket,
             game_data,
-            exiting_chapter: false,
+            exiting_chapter: RwLock::new(false),
+            events,
+            event_notifications,
+        });
+        let data_loop = Arc::clone(&data);
+        tokio::spawn(async move { data_loop.event_loop().await });
+        return data;
+    }
+
+    async fn event_loop(self: Arc<Self>) {
+        loop {
+
         }
     }
 
-    fn chapter_split(
-        &mut self,
+    async fn chapter_split(
+        &self,
         area_id: Area,
         chapter_area: Area,
         level: &str,
         completed: bool,
         last_completed: bool,
     ) -> bool {
-        if !self.exiting_chapter {
+        if !*self.exiting_chapter.read().await {
             let level_name = if chapter_area == Area::TheSummit {
                 Some(level)
             } else {
                 None
             };
-            self.exiting_chapter = area_id == chapter_area
+            let mut chap = self.exiting_chapter.write().await; 
+            *chap = area_id == chapter_area
                 && completed
                 && !last_completed
                 && (chapter_area != Area::TheSummit
                     || (level_name
                         .is_some_and(|name| !name.to_lowercase().starts_with("credits"))));
-            return self.exiting_chapter && self.splits.il_splits;
+            return *self.exiting_chapter.read().await && self.splits.il_splits;
         }
         !completed && last_completed
     }
 
-    fn area_complete_split(
-        &mut self,
+    async fn area_complete_split(
+        &self,
         area: &str,
         area_id: Area,
         level: &str,
@@ -71,7 +94,7 @@ impl LinSplitData {
                         level,
                         completed,
                         last_completed,
-                    );
+                    ).await;
                 }
                 return false;
             }
@@ -85,7 +108,7 @@ impl LinSplitData {
                         level,
                         completed,
                         last_completed,
-                    ) && area_difficulty == last_area_difficulty;
+                    ).await && area_difficulty == last_area_difficulty;
                 }
                 return false;
             }
@@ -96,7 +119,7 @@ impl LinSplitData {
     }
 
     fn area_change_split(
-        &mut self,
+        &self,
         area: &str,
         curr_area_id: Area,
         area_id_to_check: Area,
@@ -131,8 +154,8 @@ impl LinSplitData {
     }
 
     #[rustfmt::skip]
-    pub async fn main_loop(&mut self) {
-        let elapsed_offset = self.game_data.game_time;
+    pub async fn main_loop(&self) {
+        let elapsed_offset = self.game_data.read().await.game_time;
         let mut current_split: i32 = -1;
         let mut last_level_name: String = Default::default();
         let mut level_started: String = Default::default();
@@ -153,63 +176,63 @@ impl LinSplitData {
                 .unwrap();
         }
         loop {
-            self.game_data.update();
+            self.game_data.write().await.update();
             let mut should_split = false;
             if current_split == -1 && (self.splits.splits.len() == 0 || self.splits.chapter_splits)
             {
                 if self.splits.splits.len() == 0 {
-                    let level_name = self.game_data.level_name.clone();
+                    let level_name = self.game_data.read().await.level_name.clone();
 
                     should_split =
                         level_name != "" && last_level_name != "" && *level_name != last_level_name;
 
                     if should_split {
                         level_started = last_level_name.clone();
-                        level_timer = self.game_data.level_time;
+                        level_timer = self.game_data.read().await.level_time;
                     }
                     last_level_name = level_name.clone();
                 } else if !self.splits.il_splits {
-                    should_split = self.game_data.starting_new_file;
+                    should_split = self.game_data.read().await.starting_new_file;
                 } else {
-                    let chapter_started = self.game_data.chapter_started;
+                    let chapter_started = self.game_data.read().await.chapter_started;
 
                     should_split = chapter_started && !last_chapter_started;
 
                     last_chapter_started = chapter_started;
                 }
             } else {
-                let completed = self.game_data.chapter_complete;
-                let area_id = self.game_data.area_id;
+                let completed = self.game_data.read().await.chapter_complete;
+                let area_id = self.game_data.read().await.area_id;
                 let elapsed: f64 = {
                     if self.splits.file_time_offset {
-                        self.game_data.game_time - elapsed_offset
+                        self.game_data.read().await.game_time - elapsed_offset
                     } else {
                         if self.splits.il_splits {
-                            if self.game_data.area_id == Area::Menu {
+                            if self.game_data.read().await.area_id == Area::Menu {
                                 last_elapsed
                             } else {
-                                self.game_data.level_time
+                                self.game_data.read().await.level_time
                             }
                         } else {
-                            self.game_data.game_time
+                            self.game_data.read().await.game_time
                         }
                     }
                 };
-                let area_difficulty = self.game_data.area_difficulty;
+                let area_difficulty = self.game_data.read().await.area_difficulty;
                 let add_amount =
                     (self.splits.splits.len() > 0 && !self.splits.chapter_splits) as i32;
                 let opt_split = self
                     .splits
                     .splits
                     .get((current_split + add_amount) as usize);
-                let mut level_name = self.game_data.level_name.clone();
+                let mut level_name = self.game_data.read().await.level_name.clone();
                 if level_name == "" && area_id == Area::Menu {
                     level_name = last_level_name.clone()
                 };
-                let cassettes = self.game_data.cassettes;
-                let heart_gems = self.game_data.heart_gems;
-                let chapter_cassette = self.game_data.chapter_cassette_collected;
-                let chapter_heart = self.game_data.chapter_heart_collected;
+                let cassettes = self.game_data.read().await.cassettes;
+                let heart_gems = self.game_data.read().await.heart_gems;
+                let chapter_cassette = self.game_data.read().await.chapter_cassette_collected;
+                let chapter_heart = self.game_data.read().await.chapter_heart_collected;
                 //println!("{:?}", opt_split);
                 if let Some(split) = opt_split {
                     match split {
@@ -223,7 +246,7 @@ impl LinSplitData {
                                 &level_name,
                                 completed,
                                 last_completed,
-                            )
+                            ).await
                         }
                         Split::AreaComplete { area } => {
                             let area = area.clone(); // TODO: find clean way to do that
@@ -234,10 +257,10 @@ impl LinSplitData {
                                 completed,
                                 last_completed,
                                 last_area_difficulty,
-                            )
+                            ).await
                         }
                         Split::AreaOnEnter { area } => {
-                            let area = area.clone();
+                            let area = area.clone(); // TODO: same as above
                             should_split = self.area_change_split(
                                 &area,
                                 area_id,
@@ -249,7 +272,7 @@ impl LinSplitData {
                             )
                         }
                         Split::AreaOnExit { area } => {
-                            let area = area.clone();
+                            let area = area.clone(); // TODO: same as above
                             should_split = self.area_change_split(
                                 &area,
                                 area_id,
@@ -260,17 +283,17 @@ impl LinSplitData {
                                 last_area_difficulty,
                             )
                         }
-                        Split::Prologue => should_split = self.chapter_split(area_id, Area::Prologue, &level_name, completed, last_completed),
-                        Split::Chapter1 => should_split = self.chapter_split(area_id, Area::ForsakenCity, &level_name, completed, last_completed),
-                        Split::Chapter2 => should_split = self.chapter_split(area_id, Area::OldSite, &level_name, completed, last_completed),
-                        Split::Chapter3 => should_split = self.chapter_split(area_id, Area::CelestialResort, &level_name, completed, last_completed),
-                        Split::Chapter4 => should_split = self.chapter_split(area_id, Area::GoldenRidge, &level_name, completed, last_completed),
-                        Split::Chapter5 => should_split = self.chapter_split(area_id, Area::MirrorTemple, &level_name, completed, last_completed),
-                        Split::Chapter6 => should_split = self.chapter_split(area_id, Area::Reflection, &level_name, completed, last_completed),
-                        Split::Chapter7 => should_split = self.chapter_split(area_id, Area::TheSummit, &level_name, completed, last_completed),
-                        Split::Epilogue => should_split = self.chapter_split(area_id, Area::Epilogue, &level_name, completed, last_completed),
-                        Split::Chapter8 => should_split = self.chapter_split(area_id, Area::Core, &level_name, completed, last_completed),
-                        Split::Chapter9 => should_split = self.chapter_split(area_id, Area::Farewell, &level_name, completed, last_completed),
+                        Split::Prologue => should_split = self.chapter_split(area_id, Area::Prologue, &level_name, completed, last_completed).await,
+                        Split::Chapter1 => should_split = self.chapter_split(area_id, Area::ForsakenCity, &level_name, completed, last_completed).await,
+                        Split::Chapter2 => should_split = self.chapter_split(area_id, Area::OldSite, &level_name, completed, last_completed).await,
+                        Split::Chapter3 => should_split = self.chapter_split(area_id, Area::CelestialResort, &level_name, completed, last_completed).await,
+                        Split::Chapter4 => should_split = self.chapter_split(area_id, Area::GoldenRidge, &level_name, completed, last_completed).await,
+                        Split::Chapter5 => should_split = self.chapter_split(area_id, Area::MirrorTemple, &level_name, completed, last_completed).await,
+                        Split::Chapter6 => should_split = self.chapter_split(area_id, Area::Reflection, &level_name, completed, last_completed).await,
+                        Split::Chapter7 => should_split = self.chapter_split(area_id, Area::TheSummit, &level_name, completed, last_completed).await,
+                        Split::Epilogue => should_split = self.chapter_split(area_id, Area::Epilogue, &level_name, completed, last_completed).await,
+                        Split::Chapter8 => should_split = self.chapter_split(area_id, Area::Core, &level_name, completed, last_completed).await,
+                        Split::Chapter9 => should_split = self.chapter_split(area_id, Area::Farewell, &level_name, completed, last_completed).await,
                         Split::Chapter1Checkpoint1 => should_split = area_id == Area::ForsakenCity && ((area_difficulty == AreaMode::ASide && level_name == "6") || (area_difficulty != AreaMode::ASide && level_name == "04")),
                         Split::Chapter1Checkpoint2 => should_split = area_id == Area::ForsakenCity && ((area_difficulty == AreaMode::ASide && level_name == "9b") || (area_difficulty != AreaMode::ASide && level_name == "08")),
                         Split::Chapter2Checkpoint1 => should_split = area_id == Area::OldSite && ((area_difficulty == AreaMode::ASide && level_name == "3") || (area_difficulty != AreaMode::ASide && level_name == "03")),
@@ -332,7 +355,7 @@ impl LinSplitData {
                 }
 
                 if should_split && add_amount > 0 && current_split < 0 {
-                    level_timer = self.game_data.level_time;
+                    level_timer = self.game_data.read().await.level_time;
                 }
 
                 last_completed = completed;
@@ -357,7 +380,8 @@ impl LinSplitData {
             }
             let should_reset = self.splits.auto_reset
                 && self.splits.il_splits
-                && self.game_data.area_id == Area::Menu;
+                && self.game_data.read().await.area_id == Area::Menu;
+            let mut chap = self.exiting_chapter.write().await;
             if should_reset {
                 self.socket
                     .send_command(Command::Reset {
@@ -366,14 +390,14 @@ impl LinSplitData {
                     .await
                     .unwrap();
                 current_split = -1;
-                self.exiting_chapter = false;
+                *chap = false;
             } else if should_split {
                 self.socket
                     .send_command(Command::SplitOrStart)
                     .await
                     .unwrap();
                 current_split += 1;
-                self.exiting_chapter = false;
+                *chap = false;
             }
 
             sleep(Duration::from_millis(1));

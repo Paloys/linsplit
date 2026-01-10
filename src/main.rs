@@ -41,12 +41,13 @@ struct Args {
     save_location: String,
 }
 
+#[deny(unsafe_code)]
 #[cfg(target_os = "linux")]
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
-    let mut data = LinSplitData::new(
+    let data = LinSplitData::new(
         &args.splits,
         &format!("{}:{}", args.address, args.port),
         &args.save_location,

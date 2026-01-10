@@ -81,7 +81,7 @@ pub enum Split {
 impl Split {
     fn from_str_field(split: &str) -> Result<Self> {
         if let Ok(split_obj) = Split::from_str(split) {
-            return Ok(split_obj)
+            return Ok(split_obj);
         }
         let sep: Vec<&str> = split.split(",").collect();
         if sep.len() != 2 {
@@ -95,12 +95,11 @@ impl Split {
                 Split::AreaComplete { area: _ } => Ok(Split::AreaComplete { area }),
                 Split::AreaOnEnter { area: _ } => Ok(Split::AreaOnEnter { area }),
                 Split::AreaOnExit { area: _ } => Ok(Split::AreaOnExit { area }),
-                Split::LevelEnter { level: _  } => Ok(Split::LevelEnter { level: area }),
+                Split::LevelEnter { level: _ } => Ok(Split::LevelEnter { level: area }),
                 Split::LevelExit { level: _ } => Ok(Split::LevelExit { level: area }),
-                _ => {Err(anyhow::anyhow!("wrong split type"))}
+                _ => Err(anyhow::anyhow!("wrong split type")),
             }
-        }
-        else {
+        } else {
             Err(anyhow::anyhow!("wrong split type"))
         }
     }

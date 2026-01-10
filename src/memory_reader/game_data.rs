@@ -23,8 +23,6 @@ pub struct GameData {
     pub starting_new_file: bool,
 }
 
-
-
 impl GameData {
     pub fn new(save_location: &str) -> Self {
         println!("Waiting for Celeste...");
@@ -66,7 +64,10 @@ impl GameData {
             .level_name()
             .unwrap_or(String::from("Unknown"));
         self.area_id = self.mem_reader.area_id().unwrap_or(Area::Unknown);
-        self.area_difficulty = self.mem_reader.area_difficulty().unwrap_or(AreaMode::Unknown);
+        self.area_difficulty = self
+            .mem_reader
+            .area_difficulty()
+            .unwrap_or(AreaMode::Unknown);
         self.chapter_started = self.mem_reader.chapter_started().unwrap_or(false);
         self.game_time = self.mem_reader.game_time().unwrap_or(0.0);
         self.level_time = self.mem_reader.level_time().unwrap_or(0.0);
