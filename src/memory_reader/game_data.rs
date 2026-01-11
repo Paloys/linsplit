@@ -1,4 +1,3 @@
-use std::fmt::{self, Display};
 use std::time::Duration;
 
 use tokio::select;
@@ -99,27 +98,3 @@ impl GameData {
     }
 }
 
-impl Display for GameData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
-            format!("chapter_complete: {}", self.chapter_complete),
-            format!("level_name: {}", self.level_name),
-            // format!("area_id: {}", self.area_id), TODO fix this
-            // format!("area_difficulty: {}", self.area_difficulty), TODO maybe fix this
-            format!("chapter_started: {}", self.chapter_started),
-            format!("game_time: {:.3}", self.game_time),
-            format!("level_time: {:.3}", self.level_time),
-            format!("strawberries: {}", self.strawberries),
-            format!("cassettes: {}", self.cassettes),
-            format!(
-                "chapter_cassette_collected: {}",
-                self.chapter_cassette_collected
-            ),
-            format!("heart_gems: {}", self.heart_gems),
-            format!("chapter_heart_collected: {}", self.chapter_heart_collected),
-            //format!("starting_new_file: {}", self.starting_new_file),
-        )
-    }
-}

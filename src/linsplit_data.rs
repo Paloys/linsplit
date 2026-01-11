@@ -14,9 +14,9 @@ pub struct LinSplitData {
     splits: SplitData,
     socket: Arc<SplitterSocket>,
     game_data: RwLock<GameData>,
-    exiting_chapter: RwLock<bool>,
     events: Arc<Mutex<VecDeque<Event>>>,
     event_notifications: Arc<Notify>,
+    exiting_chapter: Mutex<bool>,
     current_split: Mutex<i32>,
     last_area_id: Mutex<Area>,
     last_area_difficulty: Mutex<AreaMode>,
@@ -37,7 +37,7 @@ impl LinSplitData {
             splits,
             socket,
             game_data,
-            exiting_chapter: RwLock::new(false),
+            exiting_chapter: Mutex::new(false),
             events,
             event_notifications,
             current_split: Mutex::new(-1),
@@ -59,21 +59,21 @@ impl LinSplitData {
                     }
                     Event::Splitted | Event::Finished => {
                         *self.current_split.lock().await += 1;
-                        *self.exiting_chapter.write().await = false;
+                        *self.exiting_chapter.lock().await = false;
                     }
                     Event::Reset => {
                         *self.current_split.lock().await = -1;
-                        *self.exiting_chapter.write().await = false;
+                        *self.exiting_chapter.lock().await = false;
                         *self.last_area_id.lock().await = Area::Unknown;
                         *self.last_area_difficulty.lock().await = AreaMode::Unknown;
                     }
                     Event::SplitUndone => {
                         *self.current_split.lock().await -= 1;
-                        *self.exiting_chapter.write().await = false;
+                        *self.exiting_chapter.lock().await = false;
                     }
                     Event::SplitSkipped => {
                         *self.current_split.lock().await += 1;
-                        *self.exiting_chapter.write().await = false;
+                        *self.exiting_chapter.lock().await = false;
                     }
                     _ => {}
                 }
@@ -89,20 +89,20 @@ impl LinSplitData {
         completed: bool,
         last_completed: bool,
     ) -> bool {
-        if !*self.exiting_chapter.read().await {
+        let mut exiting_chapter = self.exiting_chapter.lock().await;
+        if !*exiting_chapter {
             let level_name = if chapter_area == Area::TheSummit {
                 Some(level)
             } else {
                 None
             };
-            let mut chap = self.exiting_chapter.write().await;
-            *chap = area_id == chapter_area
+            *exiting_chapter = area_id == chapter_area
                 && completed
                 && !last_completed
                 && (chapter_area != Area::TheSummit
                     || (level_name
                         .is_some_and(|name| !name.to_lowercase().starts_with("credits"))));
-            return *self.exiting_chapter.read().await && self.splits.il_splits;
+            return *exiting_chapter && self.splits.il_splits;
         }
         !completed && last_completed
     }
@@ -254,7 +254,7 @@ impl LinSplitData {
                 //println!("{:?}", opt_split);
                 if let Some(split) = opt_split {
                     match split {
-                        Split::Manual => {} // TODO: increment split id when a split is detected
+                        Split::Manual => {}
                         Split::LevelEnter { level } => should_split = area_id != Area::Menu && level_name != last_level_name && level.to_lowercase() == level_name.to_lowercase(),
                         Split::LevelExit { level } => should_split = area_id != Area::Menu && level_name != last_level_name && level.to_lowercase() == last_level_name.to_lowercase(),
                         Split::ChapterA => {
@@ -394,7 +394,7 @@ impl LinSplitData {
             let should_reset = self.splits.auto_reset
                 && self.splits.il_splits
                 && self.game_data.read().await.area_id == Area::Menu;
-            let mut chap = self.exiting_chapter.write().await;
+            let mut chap = self.exiting_chapter.lock().await;
             if should_reset {
                 self.socket
                     .send_command(Command::Reset {
