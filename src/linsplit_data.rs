@@ -23,7 +23,7 @@ pub struct LinSplitData {
 }
 
 impl LinSplitData {
-    pub async fn new(file_path: &str, addr: &str, save_location: &str) -> Arc<Self> {
+    pub async fn new(file_path: &str, addr: &str, save_location: String) -> Arc<Self> {
         let events = Arc::new(Mutex::new(VecDeque::new()));
         let event_notifications = Arc::new(Notify::new());
         let splits = SplitData::read_splits(file_path).unwrap();
@@ -31,7 +31,7 @@ impl LinSplitData {
             SplitterSocket::new(addr, Arc::clone(&events), Arc::clone(&event_notifications))
                 .await
                 .unwrap();
-        let game_data = RwLock::new(GameData::new(save_location));
+        let game_data = RwLock::new(GameData::new(save_location).await);
         // tokio::time::sleep(Duration::from_secs(3)).await;
         let data = Arc::new(LinSplitData {
             splits,

@@ -50,7 +50,7 @@ async fn main() {
     let data = LinSplitData::new(
         &args.splits,
         &format!("{}:{}", args.address, args.port),
-        &args.save_location,
+        args.save_location,
     )
     .await;
     data.main_loop().await;

@@ -6,7 +6,6 @@ use procfs::process::{MMPermissions, Process};
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
-    thread::sleep,
     time::Duration,
 };
 
@@ -16,7 +15,7 @@ pub(super) struct EverestMemReader {
 }
 
 impl EverestMemReader {
-    pub fn new() -> Result<Option<Box<Self>>> {
+    pub async fn new() -> Result<Option<Box<Self>>> {
         const CORE_AUTOSPLITTER_MAGIC: &[u8] = b"EVERESTAUTOSPLIT\xF0\xF1\xF2\xF3";
         const CORE_AUTOSPLITTER_INFO_MIN_VERSION: u8 = 3;
         loop {
@@ -57,7 +56,7 @@ impl EverestMemReader {
                     }
                 }
             }
-            sleep(Duration::from_millis(200));
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
     }
 

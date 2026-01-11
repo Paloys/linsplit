@@ -1,4 +1,7 @@
 use std::fmt::{self, Display};
+use std::time::Duration;
+
+use tokio::select;
 
 use crate::split_reader::split_reader::{Area, AreaMode};
 
@@ -24,18 +27,32 @@ pub struct GameData {
 }
 
 impl GameData {
-    pub fn new(save_location: &str) -> Self {
+    pub async fn new(save_location: String) -> Self {
         println!("Waiting for Celeste...");
         let mem_reader: Box<dyn MemReader>;
         loop {
-            if let Ok(Some(reader)) = VanillaMemReader::new(save_location) {
-                println!("Found Vanilla Celeste.");
-                mem_reader = reader;
-                break;
-            } else if let Ok(Some(reader)) = EverestMemReader::new() {
-                println!("Found Everest.");
-                mem_reader = reader;
-                break;
+            select! {
+                res = VanillaMemReader::new(save_location.clone()) => {
+                    match res {
+                        Ok(Some(reader)) => {
+                            println!("Found Vanilla Celeste.");
+                            mem_reader = reader;
+                            break
+                        },
+                        _ => {},
+                    }
+                }
+                res = EverestMemReader::new() => {
+                    match res {
+                        Ok(Some(reader)) => {
+                            println!("Found Everest.");
+                            mem_reader = reader;
+                            break;
+                        },
+                        _ => {},
+                    }
+                }
+                _ = tokio::time::sleep(Duration::from_secs(5)) => {}
             }
         }
         Self {

@@ -17,83 +17,82 @@ pub(super) struct VanillaMemReader {
 }
 
 impl VanillaMemReader {
-    pub fn new(save_location: &str) -> Result<Option<Box<Self>>> {
-        let mut times: Vec<[u8; 8]> = Vec::with_capacity(3);
-        for i in 0..3 {
-            let file_path = expand_tilde(save_location)?.join(format!("{}.celeste", i));
-            if file_path.exists() {
-                let t = fs::read_to_string(file_path)?;
-                let u = Document::parse(t.as_str());
-                if let Ok(doc) = u {
-                    for child in doc.get_node(NodeId::new(1)).unwrap().children() {
-                        if child.tag_name().name() == "Time"
-                            && let Some(time_str) = child.text()
-                            && let Ok(time) = time_str.parse::<u64>()
-                        {
-                            times.push(time.to_le_bytes());
-                            break;
+    pub async fn new(save_location: String) -> Result<Option<Box<Self>>> {
+        tokio::task::spawn_blocking(move || {
+            let mut times: Vec<[u8; 8]> = Vec::with_capacity(3);
+            for i in 0..3 {
+                let file_path = expand_tilde(&save_location)?.join(format!("{}.celeste", i));
+                if file_path.exists() {
+                    let t = fs::read_to_string(file_path)?;
+                    let u = Document::parse(t.as_str());
+                    if let Ok(doc) = u {
+                        for child in doc.get_node(NodeId::new(1)).unwrap().children() {
+                            if child.tag_name().name() == "Time"
+                                && let Some(time_str) = child.text()
+                                && let Ok(time) = time_str.parse::<u64>()
+                            {
+                                times.push(time.to_le_bytes());
+                                break;
+                            }
                         }
                     }
                 }
             }
-        }
-        if times.is_empty() {
-            println!(
-                "Couldn't find any save files! Make sure the right path is provided with the -f argument"
-            );
-            return Ok(None);
-        }
-        let all_processes: Vec<Process> = procfs::process::all_processes()
-            .expect("Can't read /proc")
-            .filter_map(|p| match p {
-                Ok(p) => {
-                    if p.stat().ok()?.comm.contains("Celeste.bin.x86") {
-                        return Some(p);
-                    }
-                    None
-                } //  happy path
-                Err(_) => None,
-            })
-            .collect();
-        for process in all_processes {
-            if let Ok(mut memory) = process.mem()
-                && let Ok(maps) = process.maps()
-            {
-                for map in maps {
-                    if map.perms.contains(
-                        MMPermissions::READ | MMPermissions::WRITE | MMPermissions::PRIVATE,
-                    ) && map.address.1 - map.address.0 >= 24
-                    {
-                        if map.pathname != MMapPath::Anonymous {
-                            continue;
+            if times.is_empty() {
+                return Ok(None);
+            }
+            let all_processes: Vec<Process> = procfs::process::all_processes()
+                .expect("Can't read /proc")
+                .filter_map(|p| match p {
+                    Ok(p) => {
+                        if p.stat().ok()?.comm.contains("Celeste.bin.x86") {
+                            return Some(p);
                         }
-                        let size = (map.address.1 - map.address.0) as usize;
-                        let mut buf = vec![0u8; size];
+                        None
+                    } //  happy path
+                    Err(_) => None,
+                })
+                .collect();
+            for process in all_processes {
+                if let Ok(mut memory) = process.mem()
+                    && let Ok(maps) = process.maps()
+                {
+                    for map in maps {
+                        if map.perms.contains(
+                            MMPermissions::READ | MMPermissions::WRITE | MMPermissions::PRIVATE,
+                        ) && map.address.1 - map.address.0 >= 24
+                        {
+                            if map.pathname != MMapPath::Anonymous {
+                                continue;
+                            }
+                            let size = (map.address.1 - map.address.0) as usize;
+                            let mut buf = vec![0u8; size];
 
-                        memory.seek(SeekFrom::Start(map.address.0))?;
-                        if let Err(_) = memory.read_exact(&mut buf) {
-                            continue;
-                        };
-                        for time in &times {
-                            let needle: [u8; 8] = *time;
-                            for i in (0..=buf.len() - 24).step_by(8) {
-                                if &buf[i..i + 8] == needle
-                                    && buf[i - 16..i].iter().all(|&b| b == 0)
-                                {
-                                    let position = map.address.0 + i as u64;
-                                    return Ok(Some(Box::new(VanillaMemReader {
-                                        memory,
-                                        offset: position - 0x28,
-                                        last_file_time: f64::INFINITY,
-                                    })));
+                            memory.seek(SeekFrom::Start(map.address.0))?;
+                            if let Err(_) = memory.read_exact(&mut buf) {
+                                continue;
+                            };
+                            for time in &times {
+                                let needle: [u8; 8] = *time;
+                                for i in (0..=buf.len() - 24).step_by(8) {
+                                    if &buf[i..i + 8] == needle
+                                        && buf[i - 16..i].iter().all(|&b| b == 0)
+                                    {
+                                        let position = map.address.0 + i as u64;
+                                        return Ok(Some(Box::new(VanillaMemReader {
+                                            memory,
+                                            offset: position - 0x28,
+                                            last_file_time: f64::INFINITY,
+                                        })));
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-        Ok(None)
+            Ok(None)
+        }).await?
     }
 
     fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
