@@ -31,7 +31,7 @@ struct Args {
     )]
     port: String,
 
-    /// Path to the folder containing the save data (files like 0.celeste),
+    /// Path to the folder containing the save data (files like 0.celeste).
     #[arg(
         short = 'f',
         long = "save-location",

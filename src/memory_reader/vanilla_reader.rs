@@ -38,9 +38,11 @@ impl VanillaMemReader {
             }
         }
         if times.is_empty() {
+            println!(
+                "Couldn't find any save files! Make sure the right path is provided with the -f argument"
+            );
             return Ok(None);
         }
-        let time = times[1];
         let all_processes: Vec<Process> = procfs::process::all_processes()
             .expect("Can't read /proc")
             .filter_map(|p| match p {
@@ -62,7 +64,7 @@ impl VanillaMemReader {
                         MMPermissions::READ | MMPermissions::WRITE | MMPermissions::PRIVATE,
                     ) && map.address.1 - map.address.0 >= 24
                     {
-                        if !matches!(map.pathname, MMapPath::Anonymous) {
+                        if map.pathname != MMapPath::Anonymous {
                             continue;
                         }
                         let size = (map.address.1 - map.address.0) as usize;
@@ -72,16 +74,19 @@ impl VanillaMemReader {
                         if let Err(_) = memory.read_exact(&mut buf) {
                             continue;
                         };
-                        let needle: [u8; 8] = time;
-
-                        for i in (0..=buf.len() - 24).step_by(8) {
-                            if &buf[i..i + 8] == needle && buf[i - 16..i].iter().all(|&b| b == 0) {
-                                let position = map.address.0 + i as u64;
-                                return Ok(Some(Box::new(VanillaMemReader {
-                                    memory,
-                                    offset: position - 0x28,
-                                    last_file_time: f64::INFINITY,
-                                })));
+                        for time in &times {
+                            let needle: [u8; 8] = *time;
+                            for i in (0..=buf.len() - 24).step_by(8) {
+                                if &buf[i..i + 8] == needle
+                                    && buf[i - 16..i].iter().all(|&b| b == 0)
+                                {
+                                    let position = map.address.0 + i as u64;
+                                    return Ok(Some(Box::new(VanillaMemReader {
+                                        memory,
+                                        offset: position - 0x28,
+                                        last_file_time: f64::INFINITY,
+                                    })));
+                                }
                             }
                         }
                     }
