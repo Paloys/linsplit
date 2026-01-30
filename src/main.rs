@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 mod linsplit_data;
 mod livesplitone;
 mod memory_reader;
@@ -41,7 +42,6 @@ struct Args {
     save_location: String,
 }
 
-#[deny(unsafe_code)]
 #[cfg(target_os = "linux")]
 #[tokio::main]
 async fn main() {
