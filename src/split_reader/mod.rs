@@ -88,7 +88,8 @@ impl Split {
             return Err(anyhow::anyhow!("wrong split"));
         }
         if let Some(&split) = sep.first()
-        && let Ok(split_obj) = Split::from_str(split) {
+            && let Ok(split_obj) = Split::from_str(split)
+        {
             let area = String::from(sep[1]);
             match split_obj {
                 Split::AreaComplete { area: _ } => Ok(Split::AreaComplete { area }),
@@ -206,8 +207,9 @@ impl SplitData {
                         "Splits" => {
                             for split in child2.children() {
                                 if split.tag_name().name() == "Split"
-                                && let Some(split_name) = split.text()
-                                && let Ok(split_obj) = Split::from_str_field(split_name) {
+                                    && let Some(split_name) = split.text()
+                                    && let Ok(split_obj) = Split::from_str_field(split_name)
+                                {
                                     splits.push(split_obj);
                                     if split_name.len() == 8 {
                                         chapter_count += 1;

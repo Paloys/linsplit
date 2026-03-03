@@ -92,7 +92,8 @@ impl VanillaMemReader {
                 }
             }
             Ok(None)
-        }).await?
+        })
+        .await?
     }
 
     fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
@@ -148,9 +149,7 @@ impl MemReader for VanillaMemReader {
 
     fn area_difficulty(&mut self) -> Result<AreaMode> {
         // Celeste.Instance.AutosplitterInfo.Mode
-        AreaMode::try_from(i32::from_le_bytes(
-            self.read_bits(0x0c)?,
-        ))
+        AreaMode::try_from(i32::from_le_bytes(self.read_bits(0x0c)?))
     }
 
     fn chapter_started(&mut self) -> Result<bool> {

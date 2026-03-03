@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use tokio::sync::{Mutex, Notify, RwLock};
 
-use crate::livesplitone::commands::{Command, Event, TimeSpan, TimingMethod};
 use crate::livesplitone::SplitterSocket;
+use crate::livesplitone::commands::{Command, Event, TimeSpan, TimingMethod};
 use crate::memory_reader::game_data::GameData;
 use crate::split_reader::{Area, AreaMode, Split, SplitData};
 
@@ -46,7 +46,7 @@ impl LinSplitData {
         });
         let data_loop = Arc::clone(&data);
         tokio::spawn(async move { data_loop.event_loop().await });
-        
+
         data
     }
 
@@ -124,7 +124,7 @@ impl LinSplitData {
                         .chapter_split(area_id, split_area, level, completed, last_completed)
                         .await;
                 }
-                
+
                 false
             }
             [chapter, difficulty] => {
@@ -136,12 +136,10 @@ impl LinSplitData {
                         .await
                         && area_difficulty == *self.last_area_difficulty.lock().await;
                 }
-                
+
                 false
             }
-            _ => {
-                false
-            }
+            _ => false,
         }
     }
 

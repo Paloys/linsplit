@@ -91,4 +91,3 @@ impl GameData {
         self.chapter_heart_collected = self.mem_reader.chapter_heart_collected().unwrap_or(false);
     }
 }
-

@@ -108,9 +108,7 @@ impl MemReader for EverestMemReader {
     }
 
     fn area_difficulty(&mut self) -> Result<AreaMode> {
-        AreaMode::try_from(i32::from_le_bytes(
-            self.read_bits(0x34)?,
-        ))
+        AreaMode::try_from(i32::from_le_bytes(self.read_bits(0x34)?))
     }
 
     fn chapter_started(&mut self) -> Result<bool> {
