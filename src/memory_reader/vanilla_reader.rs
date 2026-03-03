@@ -1,5 +1,5 @@
 use crate::memory_reader::mem_reader::MemReader;
-use crate::split_reader::split_reader::{Area, AreaMode};
+use crate::split_reader::{Area, AreaMode};
 use anyhow::Result;
 use expand_tilde::expand_tilde;
 use procfs::process::{MMPermissions, MMapPath, Process};
@@ -69,13 +69,13 @@ impl VanillaMemReader {
                             let mut buf = vec![0u8; size];
 
                             memory.seek(SeekFrom::Start(map.address.0))?;
-                            if let Err(_) = memory.read_exact(&mut buf) {
+                            if memory.read_exact(&mut buf).is_err() {
                                 continue;
                             };
                             for time in &times {
                                 let needle: [u8; 8] = *time;
                                 for i in (0..=buf.len() - 24).step_by(8) {
-                                    if &buf[i..i + 8] == needle
+                                    if buf[i..i + 8] == needle
                                         && buf[i - 16..i].iter().all(|&b| b == 0)
                                     {
                                         let position = map.address.0 + i as u64;
@@ -128,7 +128,7 @@ impl VanillaMemReader {
 impl MemReader for VanillaMemReader {
     fn chapter_complete(&mut self) -> Result<bool> {
         // Celeste.Instance.AutosplitterInfo.ChapterComplete
-        return Ok(u8::from_le_bytes(self.read_bits(0x12)?) == 1);
+        Ok(u8::from_le_bytes(self.read_bits(0x12)?) == 1)
     }
 
     fn level_name(&mut self) -> Result<String> {
@@ -143,19 +143,19 @@ impl MemReader for VanillaMemReader {
 
     fn area_id(&mut self) -> Result<Area> {
         // Celeste.Instance.AutosplitterInfo.Chapter
-        Ok(Area::try_from(i32::from_le_bytes(self.read_bits(0x08)?))?)
+        Area::try_from(i32::from_le_bytes(self.read_bits(0x08)?))
     }
 
     fn area_difficulty(&mut self) -> Result<AreaMode> {
         // Celeste.Instance.AutosplitterInfo.Mode
-        Ok(AreaMode::try_from(i32::from_le_bytes(
+        AreaMode::try_from(i32::from_le_bytes(
             self.read_bits(0x0c)?,
-        ))?)
+        ))
     }
 
     fn chapter_started(&mut self) -> Result<bool> {
         // Celeste.Instance.AutosplitterInfo.ChapterStarted
-        return Ok(u8::from_le_bytes(self.read_bits(0x11)?) == 1);
+        Ok(u8::from_le_bytes(self.read_bits(0x11)?) == 1)
     }
 
     fn game_time(&mut self) -> Result<f64> {

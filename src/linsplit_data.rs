@@ -6,9 +6,9 @@ use std::time::Duration;
 use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::livesplitone::commands::{Command, Event, TimeSpan, TimingMethod};
-use crate::livesplitone::livesplitone::SplitterSocket;
+use crate::livesplitone::SplitterSocket;
 use crate::memory_reader::game_data::GameData;
-use crate::split_reader::split_reader::{Area, AreaMode, Split, SplitData};
+use crate::split_reader::{Area, AreaMode, Split, SplitData};
 
 pub struct LinSplitData {
     splits: SplitData,
@@ -46,7 +46,8 @@ impl LinSplitData {
         });
         let data_loop = Arc::clone(&data);
         tokio::spawn(async move { data_loop.event_loop().await });
-        return data;
+        
+        data
     }
 
     async fn event_loop(self: Arc<Self>) {
@@ -123,7 +124,8 @@ impl LinSplitData {
                         .chapter_split(area_id, split_area, level, completed, last_completed)
                         .await;
                 }
-                return false;
+                
+                false
             }
             [chapter, difficulty] => {
                 if let Ok(split_area) = Area::from_str(chapter.trim())
@@ -134,10 +136,11 @@ impl LinSplitData {
                         .await
                         && area_difficulty == *self.last_area_difficulty.lock().await;
                 }
-                return false;
+                
+                false
             }
             _ => {
-                return false;
+                false
             }
         }
     }
@@ -196,13 +199,13 @@ impl LinSplitData {
         loop {
             self.game_data.write().await.update();
             let mut should_split = false;
-            if *self.current_split.lock().await == -1 && (self.splits.splits.len() == 0 || self.splits.chapter_splits)
+            if *self.current_split.lock().await == -1 && (self.splits.splits.is_empty() || self.splits.chapter_splits)
             {
-                if self.splits.splits.len() == 0 {
+                if self.splits.splits.is_empty() {
                     let level_name = self.game_data.read().await.level_name.clone();
 
                     should_split =
-                        level_name != "" && last_level_name != "" && *level_name != last_level_name;
+                        !level_name.is_empty() && !last_level_name.is_empty() && *level_name != last_level_name;
 
                     if should_split {
                         _level_started = last_level_name.clone();
@@ -224,27 +227,25 @@ impl LinSplitData {
                 let elapsed: f64 = {
                     if self.splits.file_time_offset {
                         self.game_data.read().await.game_time - elapsed_offset
-                    } else {
-                        if self.splits.il_splits {
-                            if self.game_data.read().await.area_id == Area::Menu {
-                                last_elapsed
-                            } else {
-                                self.game_data.read().await.level_time
-                            }
+                    } else if self.splits.il_splits {
+                        if self.game_data.read().await.area_id == Area::Menu {
+                            last_elapsed
                         } else {
-                            self.game_data.read().await.game_time
+                            self.game_data.read().await.level_time
                         }
+                    } else {
+                        self.game_data.read().await.game_time
                     }
                 };
                 let area_difficulty = self.game_data.read().await.area_difficulty;
                 let add_amount =
-                    (self.splits.splits.len() > 0 && !self.splits.chapter_splits) as i32;
+                    (!self.splits.splits.is_empty() && !self.splits.chapter_splits) as i32;
                 let opt_split = self
                     .splits
                     .splits
                     .get((*self.current_split.lock().await + add_amount) as usize);
                 let mut level_name = self.game_data.read().await.level_name.clone();
-                if level_name == "" && area_id == Area::Menu {
+                if level_name.is_empty() && area_id == Area::Menu {
                     level_name = last_level_name.clone()
                 };
                 let cassettes = self.game_data.read().await.cassettes;
@@ -378,7 +379,7 @@ impl LinSplitData {
                     self.socket
                         .send_command(Command::SetGameTime {
                             time: TimeSpan::from_seconds(
-                                if self.splits.splits.len() == 0 || add_amount > 0 {
+                                if self.splits.splits.is_empty() || add_amount > 0 {
                                     elapsed - level_timer
                                 } else {
                                     elapsed

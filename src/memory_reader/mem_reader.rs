@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::split_reader::split_reader::{Area, AreaMode};
+use crate::split_reader::{Area, AreaMode};
 
 pub trait MemReader : Send + Sync {
     fn chapter_complete(&mut self) -> Result<bool>;

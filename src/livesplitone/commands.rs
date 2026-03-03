@@ -33,7 +33,7 @@ pub enum Command {
 }
 
 impl TimeSpan {
-    pub const fn to_seconds_and_subsec_nanoseconds(&self) -> (i64, i32) {
+    pub const fn to_seconds_and_subsec_nanoseconds(self) -> (i64, i32) {
         (self.0.as_secs() as i64, self.0.subsec_nanos() as i32)
     }
 

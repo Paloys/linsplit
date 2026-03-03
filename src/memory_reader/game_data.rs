@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tokio::select;
 
-use crate::split_reader::split_reader::{Area, AreaMode};
+use crate::split_reader::{Area, AreaMode};
 
 use super::everest_reader::EverestMemReader;
 use super::mem_reader::MemReader;
@@ -32,23 +32,17 @@ impl GameData {
         loop {
             select! {
                 res = VanillaMemReader::new(save_location.clone()) => {
-                    match res {
-                        Ok(Some(reader)) => {
-                            println!("Found Vanilla Celeste.");
-                            mem_reader = reader;
-                            break
-                        },
-                        _ => {},
+                    if let Ok(Some(reader)) = res {
+                        println!("Found Vanilla Celeste.");
+                        mem_reader = reader;
+                        break
                     }
                 }
                 res = EverestMemReader::new() => {
-                    match res {
-                        Ok(Some(reader)) => {
-                            println!("Found Everest.");
-                            mem_reader = reader;
-                            break;
-                        },
-                        _ => {},
+                    if let Ok(Some(reader)) = res {
+                        println!("Found Everest.");
+                        mem_reader = reader;
+                        break;
                     }
                 }
                 _ = tokio::time::sleep(Duration::from_secs(5)) => {}
