@@ -1,8 +1,8 @@
 use anyhow::Result;
 
-use crate::split_reader::split_reader::{Area, AreaMode};
+use crate::split_reader::{Area, AreaMode};
 
-pub trait MemReader : Send + Sync {
+pub trait MemReader: Send + Sync {
     fn chapter_complete(&mut self) -> Result<bool>;
     fn level_name(&mut self) -> Result<String>;
     fn area_id(&mut self) -> Result<Area>;

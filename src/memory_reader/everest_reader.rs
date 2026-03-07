@@ -1,6 +1,6 @@
 use crate::memory_reader::flags::{AutoSplitterChapterFlags, AutoSplitterFileFlags};
 use crate::memory_reader::mem_reader::MemReader;
-use crate::split_reader::split_reader::{Area, AreaMode};
+use crate::split_reader::{Area, AreaMode};
 use anyhow::{Result, anyhow};
 use procfs::process::{MMPermissions, Process};
 use std::{
@@ -104,13 +104,11 @@ impl MemReader for EverestMemReader {
     }
 
     fn area_id(&mut self) -> Result<Area> {
-        Ok(Area::try_from(i32::from_le_bytes(self.read_bits(0x30)?))?)
+        Area::try_from(i32::from_le_bytes(self.read_bits(0x30)?))
     }
 
     fn area_difficulty(&mut self) -> Result<AreaMode> {
-        Ok(AreaMode::try_from(i32::from_le_bytes(
-            self.read_bits(0x34)?,
-        ))?)
+        AreaMode::try_from(i32::from_le_bytes(self.read_bits(0x34)?))
     }
 
     fn chapter_started(&mut self) -> Result<bool> {
