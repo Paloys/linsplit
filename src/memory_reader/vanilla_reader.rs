@@ -5,6 +5,7 @@ use expand_tilde::expand_tilde;
 use procfs::process::{MMPermissions, MMapPath, Process};
 use roxmltree::{Document, NodeId};
 use std::fs;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
@@ -15,6 +16,8 @@ pub(super) struct VanillaMemReader {
     offset: u64,
     last_file_time: f64,
 }
+
+static WARNED: AtomicBool = AtomicBool::new(false);
 
 impl VanillaMemReader {
     pub async fn new(save_location: String) -> Result<Option<Box<Self>>> {
@@ -88,6 +91,11 @@ impl VanillaMemReader {
                                 }
                             }
                         }
+                    }
+                }
+                else {
+                    if !WARNED.swap(true, Ordering::Relaxed) {
+                        println!("Couldn't read the memory from the Celeste process. Try to run linsplit as root!");
                     }
                 }
             }
