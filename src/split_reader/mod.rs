@@ -108,28 +108,46 @@ impl Split {
 #[repr(i32)]
 #[derive(PartialEq, Clone, Copy, EnumString, Debug)]
 pub enum Area {
+    #[strum(serialize = "-2")]
     Unknown = -2,
+    #[strum(serialize = "Menu", serialize = "-1", ascii_case_insensitive)]
     Menu = -1,
+    #[strum(serialize = "Prologue", serialize = "0", ascii_case_insensitive)]
     Prologue = 0,
+    #[strum(serialize = "ForsakenCity", serialize = "1", ascii_case_insensitive)]
     ForsakenCity = 1,
+    #[strum(serialize = "OldSite", serialize = "2", ascii_case_insensitive)]
     OldSite = 2,
+    #[strum(serialize = "CelestialResort", serialize = "3", ascii_case_insensitive)]
     CelestialResort = 3,
+    #[strum(serialize = "GoldenRidge", serialize = "4", ascii_case_insensitive)]
     GoldenRidge = 4,
+    #[strum(serialize = "MirrorTemple", serialize = "5", ascii_case_insensitive)]
     MirrorTemple = 5,
+    #[strum(serialize = "Reflection", serialize = "6", ascii_case_insensitive)]
     Reflection = 6,
+    #[strum(serialize = "TheSummit", serialize = "7", ascii_case_insensitive)]
     TheSummit = 7,
+    #[strum(serialize = "Epilogue", serialize = "8", ascii_case_insensitive)]
     Epilogue = 8,
+    #[strum(serialize = "Core", serialize = "9", ascii_case_insensitive)]
     Core = 9,
+    #[strum(serialize = "Farewell", serialize = "10", ascii_case_insensitive)]
     Farewell = 10,
 }
 
 #[repr(i32)]
 #[derive(PartialEq, Clone, Copy, EnumString)]
 pub enum AreaMode {
+    #[strum(serialize = "-2")]
     Unknown = -2,
+    #[strum(serialize = "-1")]
     None = -1,
+    #[strum(serialize = "ASide", serialize = "0", ascii_case_insensitive)]
     ASide = 0,
+    #[strum(serialize = "BSide", serialize = "1", ascii_case_insensitive)]
     BSide = 1,
+    #[strum(serialize = "CSide", serialize = "2", ascii_case_insensitive)]
     CSide = 2,
 }
 
