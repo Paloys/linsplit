@@ -93,10 +93,8 @@ impl VanillaMemReader {
                         }
                     }
                 }
-                else {
-                    if !WARNED.swap(true, Ordering::Relaxed) {
-                        println!("Couldn't read the memory from the Celeste process. Try to run linsplit as root!");
-                    }
+                else if !WARNED.swap(true, Ordering::Relaxed) {
+                    println!("Couldn't read the memory from the Celeste process. Try to run linsplit as root!");
                 }
             }
             Ok(None)
