@@ -10,3 +10,7 @@ Hotfix for Chapter Split not working
 
 Fix for some AreaChange/AreaComplete stuff not working (especially in splits with Cassette Splits (see #2))
 Added a warning when the game's memory couldn't be read (see #3)
+
+## v1.1.3
+
+Changed the warning when the game's memory couldn't be read and modified README accordingly.

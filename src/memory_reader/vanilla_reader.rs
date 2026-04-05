@@ -94,7 +94,8 @@ impl VanillaMemReader {
                     }
                 }
                 else if !WARNED.swap(true, Ordering::Relaxed) {
-                    println!("Couldn't read the memory from the Celeste process. Try to run linsplit as root!");
+                    println!("Couldn't read the memory from the Celeste process because of missing permissions.");
+                    println!("Read more at https://github.com/Paloys/linsplit#linsplit-tells-me-the-games-memory-couldnt-be-read")
                 }
             }
             Ok(None)
