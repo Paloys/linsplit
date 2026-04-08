@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use tokio::select;
-
 use crate::split_reader::{Area, AreaMode};
 
 use super::everest_reader::EverestMemReader;
@@ -30,23 +28,21 @@ impl GameData {
         println!("Waiting for Celeste...");
         let mem_reader: Box<dyn MemReader>;
         loop {
-            select! {
-                res = VanillaMemReader::new(save_location.clone()) => {
-                    if let Ok(Some(reader)) = res {
-                        println!("Found Vanilla Celeste.");
-                        mem_reader = reader;
-                        break
-                    }
-                }
-                res = EverestMemReader::new() => {
-                    if let Ok(Some(reader)) = res {
-                        println!("Found Everest.");
-                        mem_reader = reader;
-                        break;
-                    }
-                }
-                _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+            let res = VanillaMemReader::new(save_location.clone()).await;
+            if let Ok(Some(reader)) = res {
+                println!("Found Vanilla Celeste.");
+                mem_reader = reader;
+                break;
             }
+
+            let res = EverestMemReader::scan_once().await;
+            if let Ok(Some(reader)) = res {
+                println!("Found Everest.");
+                mem_reader = reader;
+                break;
+            }
+
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
         Self {
             mem_reader,

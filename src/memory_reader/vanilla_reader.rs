@@ -20,13 +20,15 @@ pub(super) struct VanillaMemReader {
 static WARNED: AtomicBool = AtomicBool::new(false);
 
 impl VanillaMemReader {
+    const SCAN_CHUNK_SIZE: usize = 1024 * 1024;
+
     pub async fn new(save_location: String) -> Result<Option<Box<Self>>> {
         tokio::task::spawn_blocking(move || {
             let mut times: Vec<[u8; 8]> = Vec::with_capacity(3);
             for i in 0..3 {
                 let file_path = expand_tilde(&save_location)?.join(format!("{}.celeste", i));
                 if file_path.exists() {
-                    let t = fs::read_to_string(file_path)?;
+                    let t = fs::read_to_string(&file_path)?;
                     let u = Document::parse(t.as_str());
                     if let Ok(doc) = u {
                         for child in doc.get_node(NodeId::new(1)).unwrap().children() {
@@ -68,27 +70,43 @@ impl VanillaMemReader {
                             if map.pathname != MMapPath::Anonymous {
                                 continue;
                             }
-                            let size = (map.address.1 - map.address.0) as usize;
-                            let mut buf = vec![0u8; size];
+                            let mut overlap: Vec<u8> = Vec::new();
+                            let mut cursor = map.address.0;
+                            while cursor < map.address.1 {
+                                let remaining = (map.address.1 - cursor) as usize;
+                                let chunk_len = remaining.min(Self::SCAN_CHUNK_SIZE);
+                                let mut buf = vec![0u8; overlap.len() + chunk_len];
+                                buf[..overlap.len()].copy_from_slice(&overlap);
 
-                            memory.seek(SeekFrom::Start(map.address.0))?;
-                            if memory.read_exact(&mut buf).is_err() {
-                                continue;
-                            };
-                            for time in &times {
-                                let needle: [u8; 8] = *time;
-                                for i in (0..=buf.len() - 24).step_by(8) {
-                                    if buf[i..i + 8] == needle
-                                        && buf[i - 16..i].iter().all(|&b| b == 0)
-                                    {
-                                        let position = map.address.0 + i as u64;
-                                        return Ok(Some(Box::new(VanillaMemReader {
-                                            memory,
-                                            offset: position - 0x28,
-                                            last_file_time: f64::INFINITY,
-                                        })));
+                                memory.seek(SeekFrom::Start(cursor))?;
+                                if memory.read_exact(&mut buf[overlap.len()..]).is_err() {
+                                    break;
+                                }
+
+                                let scan_limit = buf.len().saturating_sub(24);
+                                for time in &times {
+                                    let needle: [u8; 8] = *time;
+                                    for i in (0..=scan_limit).step_by(8) {
+                                        if i < 16 {
+                                            continue;
+                                        }
+                                        if buf[i..i + 8] == needle
+                                            && buf[i - 16..i].iter().all(|&b| b == 0)
+                                        {
+                                            let position = cursor - overlap.len() as u64 + i as u64;
+                                            return Ok(Some(Box::new(VanillaMemReader {
+                                                memory,
+                                                offset: position - 0x28,
+                                                last_file_time: f64::INFINITY,
+                                            })));
+                                        }
                                     }
                                 }
+
+                                let keep = buf.len().min(32);
+                                overlap.clear();
+                                overlap.extend_from_slice(&buf[buf.len() - keep..]);
+                                cursor += chunk_len as u64;
                             }
                         }
                     }

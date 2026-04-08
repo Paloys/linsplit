@@ -16,48 +16,55 @@ pub(super) struct EverestMemReader {
 
 impl EverestMemReader {
     pub async fn new() -> Result<Option<Box<Self>>> {
+        loop {
+            if let Some(reader) = Self::scan_once().await? {
+                return Ok(Some(reader));
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    pub async fn scan_once() -> Result<Option<Box<Self>>> {
         const CORE_AUTOSPLITTER_MAGIC: &[u8] = b"EVERESTAUTOSPLIT\xF0\xF1\xF2\xF3";
         const CORE_AUTOSPLITTER_INFO_MIN_VERSION: u8 = 3;
-        loop {
-            let all_processes: Vec<Process> = procfs::process::all_processes()
-                .expect("Can't read /proc")
-                .filter_map(|p| match p {
-                    Ok(p) => {
-                        if p.stat().ok()?.comm.contains("Celeste") {
-                            return Some(p);
-                        }
-                        None
+        let all_processes: Vec<Process> = procfs::process::all_processes()
+            .expect("Can't read /proc")
+            .filter_map(|p| match p {
+                Ok(p) => {
+                    if p.stat().ok()?.comm.contains("Celeste") {
+                        return Some(p);
                     }
-                    Err(_) => None,
-                })
-                .collect();
-            for process in all_processes {
-                if let Ok(mut memory) = process.mem()
-                    && let Ok(maps) = process.maps()
-                {
-                    for map in maps {
-                        if map.perms.contains(MMPermissions::READ) {
-                            memory.seek(SeekFrom::Start(map.address.0))?;
-                            let mut buf: [u8; 20] = [0u8; 20];
-                            memory.read_exact(&mut buf).unwrap_or(());
-                            if buf.iter().eq(CORE_AUTOSPLITTER_MAGIC) {
-                                let mut buf2: [u8; 1] = [0];
-                                memory.seek(SeekFrom::Current(0x03))?;
-                                memory.read_exact(&mut buf2).unwrap_or(());
-                                if u8::from_be_bytes(buf2) < CORE_AUTOSPLITTER_INFO_MIN_VERSION {
-                                    continue;
-                                }
-                                return Ok(Some(Box::new(Self {
-                                    memory,
-                                    offset: map.address.0,
-                                })));
+                    None
+                }
+                Err(_) => None,
+            })
+            .collect();
+        for process in all_processes {
+            if let Ok(mut memory) = process.mem()
+                && let Ok(maps) = process.maps()
+            {
+                for map in maps {
+                    if map.perms.contains(MMPermissions::READ) {
+                        memory.seek(SeekFrom::Start(map.address.0))?;
+                        let mut buf: [u8; 20] = [0u8; 20];
+                        memory.read_exact(&mut buf).unwrap_or(());
+                        if buf.iter().eq(CORE_AUTOSPLITTER_MAGIC) {
+                            let mut buf2: [u8; 1] = [0];
+                            memory.seek(SeekFrom::Current(0x03))?;
+                            memory.read_exact(&mut buf2).unwrap_or(());
+                            if u8::from_be_bytes(buf2) < CORE_AUTOSPLITTER_INFO_MIN_VERSION {
+                                continue;
                             }
+                            return Ok(Some(Box::new(Self {
+                                memory,
+                                offset: map.address.0,
+                            })));
                         }
                     }
                 }
             }
-            tokio::time::sleep(Duration::from_millis(200)).await;
         }
+        Ok(None)
     }
 
     fn read_bits<const COUNT: usize>(&mut self, offset: u64) -> Result<[u8; COUNT]> {
